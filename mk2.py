@@ -607,7 +607,11 @@ def stop_animation():
 
 @app.route('/list')
 def list_animations():
-    return jsonify({'animations': list(animations.keys())})
+    print("\nAvailable animations:")
+    print("-------------------------")
+    for i, anim in enumerate(animations.keys(), 1):
+        print(f"{i}. {anim}")
+    print("-------------------------")
 
 if __name__ == '__main__':
     try:
@@ -622,6 +626,9 @@ if __name__ == '__main__':
         print("\nCommands:")
         print("'s' - Show Spotify devices and select active device")
         print("'p' - Fetch and save playlists")
+        print("'l' - List available playlists")
+        print("'a' - List and start animations")
+        print("'x' - Stop current animation")
         print("'q' - Quit")
 
         # Start Flask server in a separate thread
@@ -635,6 +642,25 @@ if __name__ == '__main__':
                 show_spotify_devices()
             elif cmd == 'p':
                 fetch_and_save_playlists()
+            elif cmd == 'l':
+                print_available_playlists()
+            elif cmd == 'a':
+                list_animations()
+                try:
+                    choice = input("\nSelect animation number (or press Enter to cancel): ").strip()
+                    if choice:
+                        anim_num = int(choice) - 1
+                        anim_list = list(animations.keys())
+                        if 0 <= anim_num < len(anim_list):
+                            current_animation = anim_list[anim_num]
+                            print(f"Started animation: {current_animation}")
+                        else:
+                            print("Invalid animation number!")
+                except ValueError:
+                    print("Invalid input! Please enter a number.")
+            elif cmd == 'x':
+                current_animation = None
+                print("Animation stopped")
             elif cmd == 'q':
                 break
 

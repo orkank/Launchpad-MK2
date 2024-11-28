@@ -76,13 +76,32 @@ python mk2.py
 
 ## Commands
 
+## Commands
+
 | Command | Description |
 |---------|-------------|
 | `s` | Show and select available Spotify devices |
 | `p` | Fetch and save your Spotify playlists to `.playlists` file |
 | `l` | List all available playlists |
+| `a` | List and start animations |
+| `x` | Stop current animation |
 | `q` | Quit the application |
 
+### Available Animations
+- `rainbow` - Rainbow wave pattern
+- `matrix` - Matrix-style falling characters
+- `pulse` - Pulsing rings of light
+- `sparkle` - Random twinkling lights
+- `wipe` - Color wipe transitions
+- `snake` - Moving snake pattern
+- `fireworks` - Exploding firework effects
+- `rain` - Falling rain effect
+- `wave` - Colliding wave patterns
+
+You can start animations either through:
+1. Command line: Use 'a' to list and select animations
+2. Web interface: Visit `http://localhost:5125/animation/<name>`
+3. Stop any running animation with the 'x' command
 ## Web Interface
 
 The script runs a web server on port 5125 with the following endpoints:
