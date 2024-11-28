@@ -23,12 +23,39 @@ pip install rtmidi flask spotipy
 
 1. Configure your playlist mappings in the script:
 
+To map playlists to buttons, edit the `playlist_mappings` dictionary in the script:
+
+```python
 playlist_mappings = {
 # Format: (x, y): 'playlist_name'
 (0, 7): 'dream catcher',
 (0, 0): 'Trip',
 # Add more mappings as needed
 }
+```
+
+## Launchpad Key Mapping
+
+### Grid Layout
+The Launchpad MK2 has a 9x9 grid of buttons (including the top row and right column). The coordinates are mapped as follows:
+
+```
+   0   1   2   3   4   5   6   7   8  (x)
+0  □   □   □   □   □   □   □   □   ▷
+1  □   □   □   □   □   □   □   □   ▷
+2  □   □   □   □   □   □   □   □   ▷
+3  □   □   □   □   □   □   □   □   ▷
+4  □   □   □   □   □   □   □   □   ▷
+5  □   □   □   □   □   □   □   □   ▷
+6  □   □   □   □   □   □   □   □   ▷
+7  □   □   □   □   □   □   □   □   ▷
+8  ▽   ▽   ▽   ▽   ▽   ▽   ▽   ▽   ⬚
+(y)
+```
+- Main grid: (0,0) to (7,7)
+- Top row: (0,8) to (7,8)
+- Right column: (8,0) to (8,7)
+- Top-right corner: (8,8)
 
 ## Running the Script
 
