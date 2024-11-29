@@ -125,50 +125,116 @@ def rainbow_wave(midi_out):
             time.sleep(0.05)
 
 def matrix_rain(midi_out):
-    drops = [[random.randint(0, 8) for _ in range(9)] for _ in range(9)]
+    drops = []
+    grid_width = 9  # Match grid size
+    grid_height = 9
+
     while should_run and current_animation == 'matrix':
+        # Create new drops
+        if random.random() < 0.3:
+            drops.append({
+                'x': random.randint(0, grid_width - 1),
+                'y': grid_height - 1,
+                'speed': random.uniform(0.2, 0.5)
+            })
+
+        # Clear grid
         clear_all(midi_out)
 
-        for x in range(9):
-            for y in range(9):
-                intensity = max(0, min(255, (drops[x][y] - y) * 32))
-                set_color(midi_out, x, y, 0, intensity, 0)
+        # Update and draw drops
+        new_drops = []
+        for drop in drops:
+            drop['y'] -= drop['speed']
+            if drop['y'] > 0:
+                x = int(drop['x'])
+                y = int(drop['y'])
+                if 0 <= x < grid_width and 0 <= y < grid_height:
+                    intensity = min(255, int((1.0 - (drop['y'] / grid_height)) * 255))
+                    set_color(midi_out, x, y, 0, intensity, 0)
+                    new_drops.append(drop)
 
-            drops[x] = [d + 1 for d in drops[x]]
-            if max(drops[x]) > 16:
-                drops[x] = [random.randint(-8, 0) for _ in range(9)]
-
-        time.sleep(0.1)
+        drops = new_drops
+        time.sleep(0.05)
 
 def pulse_rings(midi_out):
+    center_x = 4  # Center X coordinate (same as rainbow)
+    center_y = 4  # Center Y coordinate (same as rainbow)
+    max_radius = 8  # Maximum radius to cover the grid
     phase = 0
+
     while should_run and current_animation == 'pulse':
-        center_x, center_y = 4, 4
+        # Clear grid
+        clear_all(midi_out)
+
+        # Calculate pulse intensity (0 to 1)
+        pulse = (math.sin(phase / 10) + 1) / 2
+
+        # Draw concentric rings
         for y in range(9):
             for x in range(9):
-                distance = math.sqrt((x - center_x)**2 + (y - center_y)**2)
-                intensity = math.sin(phase/10.0 + distance/2.0) * 0.5 + 0.5
-                r = int(255 * intensity * abs(math.sin(phase/25.0)))
-                g = int(255 * intensity * abs(math.sin(phase/20.0)))
-                b = int(255 * intensity * abs(math.sin(phase/15.0)))
+                # Calculate distance from center
+                dx = x - center_x
+                dy = y - center_y
+                distance = math.sqrt(dx*dx + dy*dy)
+
+                # Calculate color intensity based on distance and pulse
+                intensity = 1.0 - (distance / max_radius)
+                if intensity < 0:
+                    intensity = 0
+
+                # Modulate intensity with pulse
+                intensity *= pulse
+
+                # Set color (using similar color scheme to rainbow)
+                r = int(255 * intensity)
+                g = int(100 * intensity)
+                b = int(200 * intensity)
+
                 set_color(midi_out, x, y, r, g, b)
+
         phase += 1
         time.sleep(0.05)
 
 def random_sparkle(midi_out):
-    while should_run and current_animation == 'sparkle':
-        for _ in range(5):
-            if current_animation != 'sparkle':
-                break
-            x = random.randint(0, 8)
-            y = random.randint(0, 8)
-            r = random.randint(0, 255)
-            g = random.randint(0, 255)
-            b = random.randint(0, 255)
-            set_color(midi_out, x, y, r, g, b)
+    grid_width = 9  # Match grid size
+    grid_height = 9
+    sparkles = []
 
-        time.sleep(0.05)
+    while should_run and current_animation == 'sparkle':
+        # Add new sparkles
+        if random.random() < 0.2:
+            sparkles.append({
+                'x': random.randint(0, grid_width - 1),
+                'y': random.randint(0, grid_height - 1),
+                'life': 1.0,
+                'color': (
+                    random.randint(100, 255),
+                    random.randint(100, 255),
+                    random.randint(100, 255)
+                )
+            })
+
+        # Clear grid
         clear_all(midi_out)
+
+        # Update and draw sparkles
+        new_sparkles = []
+        for sparkle in sparkles:
+            if sparkle['life'] > 0:
+                x = sparkle['x']
+                y = sparkle['y']
+                intensity = sparkle['life']
+                r = int(sparkle['color'][0] * intensity)
+                g = int(sparkle['color'][1] * intensity)
+                b = int(sparkle['color'][2] * intensity)
+                set_color(midi_out, x, y, r, g, b)
+
+                sparkle['life'] -= 0.05
+                if sparkle['life'] > 0:
+                    new_sparkles.append(sparkle)
+
+        sparkles = new_sparkles
+        time.sleep(0.05)
 
 def initialize_spotify():
     global spotify
@@ -547,13 +613,27 @@ def rain(midi_out):
         time.sleep(0.05)
 
 def wave_collision(midi_out):
+    center_x = 4  # Center X coordinate (same as rainbow)
+    center_y = 4  # Center Y coordinate (same as rainbow)
+    grid_width = 9
+    grid_height = 9
     phase = 0
+
     while should_run and current_animation == 'wave':
-        for y in range(9):
-            for x in range(9):
+        for y in range(grid_height):
+            for x in range(grid_width):
+                # Calculate distances from center
+                dx1 = x - center_x
+                dy1 = y - center_y
+                dx2 = x - (grid_width - center_x - 1)
+                dy2 = y - (grid_height - center_y - 1)
+
                 # Create two waves from opposite corners
-                wave1 = math.sin(phase/10.0 + math.sqrt(x*x + y*y)/2.0)
-                wave2 = math.sin(phase/10.0 + math.sqrt((8-x)*(8-x) + (8-y)*(8-y))/2.0)
+                dist1 = math.sqrt(dx1*dx1 + dy1*dy1)
+                dist2 = math.sqrt(dx2*dx2 + dy2*dy2)
+
+                wave1 = math.sin(phase/10.0 + dist1/2.0)
+                wave2 = math.sin(phase/10.0 + dist2/2.0)
 
                 # Combine waves
                 combined = (wave1 + wave2) / 2.0
@@ -565,6 +645,7 @@ def wave_collision(midi_out):
                 b = int(255 * intensity * abs(math.sin(phase/15.0)))
 
                 set_color(midi_out, x, y, r, g, b)
+
         phase += 1
         time.sleep(0.05)
 
@@ -615,11 +696,101 @@ def stop_animation():
 
 @app.route('/list')
 def list_animations():
+    return jsonify(list(animations.keys()))
+
+@app.route('/devices')
+def list_devices():
+    if spotify:
+        try:
+            devices = spotify.devices()
+            return jsonify(devices)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    return jsonify({'error': 'Spotify not initialized'}), 500
+
+@app.route('/device/<device_id>')
+def select_device(device_id):
+    if spotify:
+        try:
+            spotify.transfer_playback(device_id)
+            return jsonify({'success': True, 'message': f'Playback transferred to device {device_id}'})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    return jsonify({'error': 'Spotify not initialized'}), 500
+
+@app.route('/')
+def index():
+    commands = {
+        'animations': {
+            'description': 'Control LED animations',
+            'endpoints': {
+                '/animation/<name>': 'Start an animation (available: rainbow, matrix, pulse, sparkle, wipe, snake, fireworks, rain, wave)',
+                '/stop': 'Stop current animation',
+                '/list': 'List all available animations'
+            }
+        },
+        'spotify': {
+            'description': 'Spotify controls',
+            'endpoints': {
+                '/devices': 'List available Spotify devices',
+                '/device/<id>': 'Select Spotify device by ID'
+            }
+        }
+    }
+
+    # Create HTML response
+    html = """
+    <html>
+    <head>
+        <title>Launchpad MK2 Controller</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            h1 { color: #333; }
+            h2 { color: #666; margin-top: 20px; }
+            .endpoint { margin-left: 20px; margin-bottom: 10px; }
+            .description { color: #888; }
+            code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }
+        </style>
+    </head>
+    <body>
+        <h1>Launchpad MK2 Controller API</h1>
+    """
+
+    for category, info in commands.items():
+        html += f"<h2>{category.title()}</h2>"
+        html += f"<p class='description'>{info['description']}</p>"
+        for endpoint, desc in info['endpoints'].items():
+            html += f"<div class='endpoint'>"
+            html += f"<code>{endpoint}</code>: {desc}"
+            html += "</div>"
+
+    html += """
+    </body>
+    </html>
+    """
+
+    return html
+
+def print_available_animations():
     print("\nAvailable animations:")
     print("-------------------------")
     for i, anim in enumerate(animations.keys(), 1):
         print(f"{i}. {anim}")
     print("-------------------------")
+
+def print_available_playlists():
+    try:
+        with open('.playlists', 'r', encoding='utf-8') as f:
+            print("\nAvailable playlists:")
+            print("-------------------------")
+            for line in f:
+                if ' tracks)' in line:  # This is a name line
+                    print(line.strip())
+            print("-------------------------")
+    except FileNotFoundError:
+        print("Playlist file not found. Please run 'p' command first to fetch playlists.")
+    except Exception as e:
+        print(f"Error reading playlist file: {str(e)}")
 
 if __name__ == '__main__':
     try:
@@ -653,7 +824,7 @@ if __name__ == '__main__':
             elif cmd == 'l':
                 print_available_playlists()
             elif cmd == 'a':
-                list_animations()
+                print_available_animations()
                 try:
                     choice = input("\nSelect animation number (or press Enter to cancel): ").strip()
                     if choice:
