@@ -9,6 +9,7 @@ from flask import Flask, jsonify
 from queue import Queue
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+import json
 
 app = Flask(__name__)
 
@@ -18,22 +19,29 @@ animation_thread = None
 command_queue = Queue()
 should_run = True
 spotify = None
-playlist_mappings = {
-    # Format: (x, y): 'playlist_name'
 
-    # Top row - Focus
-    (0, 7): 'dream catcher',
-    (1, 7): 'Aydaki Adam',
+def load_playlist_mappings():
+    try:
+        with open('playlists.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            # Convert string coordinates back to tuples
+            mappings = {}
+            for coord, info in data['mappings'].items():
+                x, y = map(int, coord.split(','))
+                mappings[(x, y)] = info['name']
+            return mappings
+    except FileNotFoundError:
+        print("Warning: playlists.json not found, using empty mapping")
+        return {}
+    except json.JSONDecodeError:
+        print("Error: Invalid JSON in playlists.json")
+        return {}
+    except Exception as e:
+        print(f"Error loading playlist mappings: {str(e)}")
+        return {}
 
-    # Second row - Heavy Rotation
-    (0, 7): 'Jakuzi',
-    (1, 7): 'Aydaki Adam',
-
-    # Bottom row - Deep cuts
-    (0, 0): 'Trip',
-    (0, 1): 'More Coda',
-    # Add more mappings using playlist names
-}
+# Load mappings when script starts
+playlist_mappings = load_playlist_mappings()
 
 def initialize_launchpad():
     try:

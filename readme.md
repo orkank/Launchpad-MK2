@@ -2,6 +2,31 @@
 
 Control your Spotify playback using a Novation Launchpad MK2. Features include playlist control, device selection, and LED animations.
 
+## Table of Contents
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+- [Running the Script](#running-the-script)
+- [Commands](#commands)
+  - [Available Animations](#available-animations)
+- [Web Interface](#web-interface)
+- [Launchpad Key Mapping](#launchpad-key-mapping)
+  - [Grid Layout](#grid-layout)
+  - [Playlist Mapping](#playlist-mapping)
+  - [Special Buttons](#special-buttons)
+  - [Tips for Mapping](#tips-for-mapping)
+  - [Example Thematic Layout](#example-thematic-layout)
+- [System Requirements & Compatibility](#system-requirements--compatibility)
+  - [Tested Environment](#tested-environment)
+  - [Important Notes](#important-notes)
+  - [macOS Setup](#macos-setup)
+  - [Known Issues](#known-issues)
+- [Spotify Developer Setup](#spotify-developer-setup)
+- [Troubleshooting](#troubleshooting)
+- [Files](#files)
+- [Notes](#notes)
+
 ## Getting Started
 
 ### Prerequisites
@@ -21,41 +46,51 @@ pip install rtmidi flask spotipy
 
 ### Configuration
 
-1. Configure your playlist mappings in the script:
+### Playlist Configuration
 
-To map playlists to buttons, edit the `playlist_mappings` dictionary in the script:
+Playlists are configured in `playlists.json`. The format is:
 
-```python
-playlist_mappings = {
-# Format: (x, y): 'playlist_name'
-(0, 7): 'dream catcher',
-(0, 0): 'Trip',
-# Add more mappings as needed
+```json
+{
+    "mappings": {
+        "x,y": {
+            "name": "exact_playlist_name",
+            "description": "Optional description"
+        }
+    }
 }
 ```
 
-## Launchpad Key Mapping
-
-### Grid Layout
-The Launchpad MK2 has a 9x9 grid of buttons (including the top row and right column). The coordinates are mapped as follows:
-
+Example configuration:
+```json
+{
+    "mappings": {
+        "0,7": {
+            "name": "dream catcher",
+            "description": "Bottom-left - Chill vibes"
+        },
+        "0,0": {
+            "name": "Trip",
+            "description": "Top-left - Travel playlist"
+        }
+    }
+}
 ```
-   0   1   2   3   4   5   6   7   8  (x)
-0  □   □   □   □   □   □   □   □   ▷
-1  □   □   □   □   □   □   □   □   ▷
-2  □   □   □   □   □   □   □   □   ▷
-3  □   □   □   □   □   □   □   □   ▷
-4  □   □   □   □   □   □   □   □   ▷
-5  □   □   □   □   □   □   □   □   ▷
-6  □   □   □   □   □   □   □   □   ▷
-7  □   □   □   □   □   □   □   □   ▷
-8  ▽   ▽   ▽   ▽   ▽   ▽   ▽   ▽   ⬚
-(y)
-```
-- Main grid: (0,0) to (7,7)
-- Top row: (0,8) to (7,8)
-- Right column: (8,0) to (8,7)
-- Top-right corner: (8,8)
+
+Coordinate Reference:
+- x: 0-8 (left to right)
+- y: 0-8 (top to bottom)
+- Example: "0,7" is bottom-left corner
+
+To configure:
+1. Use 'l' command to list available playlists
+2. Copy exact playlist names
+3. Edit playlists.json
+4. Restart the script to load new mappings
+
+Tips:
+- Keep playlist names exactly as they appear in Spotify
+- Use descriptions to remember what each button does
 
 ## Running the Script
 
@@ -73,8 +108,6 @@ python mk2.py
    - Grant the requested permissions
    - Copy the URL from the browser and paste it into the script (it will be in the form of http://localhost:5125/callback?code=...)
    - Callback URI doesnt matter, just use http://localhost:5125/callback.
-
-## Commands
 
 ## Commands
 
@@ -121,37 +154,99 @@ Available animations:
 - rain
 - wave
 
-## Launchpad Layout
+## Launchpad Key Mapping
 
-- Top-right button (8,8): Show Spotify devices
-- Other buttons: Play mapped playlists (according to playlist_mappings)
+### Grid Layout
+The Launchpad MK2 has a 9x9 grid of buttons (including the top row and right column). The coordinates are mapped as follows:
 
-## Troubleshooting
+```
+   0   1   2   3   4   5   6   7   8  (x)
+0  □   □   □   □   □   □   □   □   ▷
+1  □   □   □   □   □   □   □   □   ▷
+2  □   □   □   □   □   □   □   □   ▷
+3  □   □   □   □   □   □   □   □   ▷
+4  □   □   □   □   □   □   □   □   ▷
+5  □   □   □   □   □   □   □   □   ▷
+6  □   □   □   □   □   □   □   □   ▷
+7  □   □   □   □   □   □   □   □   ▷
+8  ▽   ▽   ▽   ▽   ▽   ▽   ▽   ▽   ⬚
+(y)
+```
+- Main grid: (0,0) to (7,7)
+- Top row: (0,8) to (7,8)
+- Right column: (8,0) to (8,7)
+- Top-right corner: (8,8)
 
-1. If you get "No MIDI ports found":
-   - Open 'Audio MIDI Setup' application
-   - Go to Window > Show MIDI Studio
-   - Check if Launchpad MK2 is visible and enabled
-   - Try unplugging and replugging the Launchpad
+## System Requirements & Compatibility
 
-2. If you get Spotify authentication errors:
-   - Delete the `.cache` file
-   - Run the script again
-   - Go through the authentication process
+### Tested Environment
+- macOS Sonoma 15.1.1
+- Python 3.6 or higher
+- Novation Launchpad MK2 (tested on MK2+)
+- Spotify Premium account
 
-3. If playlists don't play:
-   - Make sure Spotify is open and active
-   - Verify the device selection using the 's' command
-   - Check playlist names match exactly using the 'l' command
+### Important Notes
+- Primary development and testing was done on macOS
+- Other operating systems may require additional setup or have different behavior
+- If using Windows or Linux, MIDI device setup process might differ
 
-## Files
+### macOS Setup
+1. Open 'Audio MIDI Setup' application
+2. Go to Window > Show MIDI Studio
+3. Ensure Launchpad MK2 is visible and enabled
+4. Connect Launchpad before starting the script
 
-- `mk2.py` - Main script
-- `.playlists` - Cached playlist information
-- `.cache` - Spotify authentication cache
+### Known Issues
+- If Launchpad is not recognized:
+  - Try unplugging and replugging the device
+  - Restart the Audio MIDI Setup application
+  - Ensure no other applications are using the Launchpad
+
+If you successfully run this on other operating systems, please let us know so we can update the compatibility list.
 
 ## Notes
 
 - Requires Spotify Premium for playback control
 - Playlist names are case-insensitive but must otherwise match exactly
 - The script must be run from a terminal that can handle input commands
+
+## Spotify Developer Setup
+
+1. Create a Spotify Developer Account:
+   - Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+   - Log in with your Spotify account
+   - Accept the Developer Terms of Service
+
+2. Create a New Application:
+   - Click "Create an App" button
+   - Fill in the application details:
+     - App name: (e.g., "Launchpad Controller")
+     - App description: (e.g., "Launchpad MK2 Spotify Controller")
+     - Redirect URI: `http://localhost:8888/callback`
+   - Click "Create"
+
+3. Get Your Credentials:
+   - Once created, you'll see your app in the dashboard
+   - Click on your app to view settings
+   - Note down the following:
+     - Client ID
+     - Client Secret (click "View Client Secret" to reveal)
+
+4. Create `.secret` file:
+   - Create a file named `.secret` in the same directory as the script
+   - Add your credentials in this format:
+```
+client_id=YOUR_CLIENT_ID
+client_secret=YOUR_CLIENT_SECRET
+```
+   - Save the file
+   - Note: Never share or commit your `.secret` file!
+
+5. Required Spotify Permissions:
+   - Your app needs the following scopes:
+     - `user-modify-playback-state`
+     - `user-read-playback-state`
+     - `playlist-read-private`
+   - These are automatically requested during authentication
+
+[Source: Spotify Web API Getting Started Guide](https://developer.spotify.com/documentation/web-api/tutorials/getting-started)

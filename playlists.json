@@ -1,0 +1,24 @@
+{
+  "mappings": {
+    "0,7": {
+      "name": "dream catcher",
+      "description": "Bottom-left area - Chill playlist"
+    },
+    "0,0": {
+      "name": "Trip",
+      "description": "Top-left area - Travel vibes"
+    },
+    "7,0": {
+      "name": "Rock playlist",
+      "description": "Top-right area - Rock music"
+    },
+    "0,0": {
+      "name": "Trip",
+      "description": "Top-right area - Rock music"
+    },
+    "0,1": {
+      "name": "More Coda",
+      "description": ""
+    }
+  }
+}
