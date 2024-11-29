@@ -8,3 +8,4 @@ venv/*
 .playlists
 .cache
 .secret
+playlist.json

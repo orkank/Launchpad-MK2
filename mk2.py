@@ -649,6 +649,78 @@ def wave_collision(midi_out):
         phase += 1
         time.sleep(0.05)
 
+def create_blow_effect(midi_out, center_x, center_y, color=(255, 255, 255), duration=0.3, max_radius=3):
+    """Creates a temporary blow effect around a pressed key"""
+    original_animation = current_animation
+    start_time = time.time()
+
+    while time.time() - start_time < duration:
+        progress = (time.time() - start_time) / duration
+        current_radius = progress * max_radius
+
+        # Store current grid state if there's an animation
+        if original_animation:
+            # Let the current animation update one frame
+            time.sleep(0.01)
+
+        # Draw the blow effect
+        for y in range(max(0, int(center_y - max_radius)), min(9, int(center_y + max_radius + 1))):
+            for x in range(max(0, int(center_x - max_radius)), min(9, int(center_x + max_radius + 1))):
+                dx = x - center_x
+                dy = y - center_y
+                distance = math.sqrt(dx*dx + dy*dy)
+
+                if distance <= current_radius:
+                    # Calculate intensity based on distance and time
+                    intensity = (1.0 - distance/max_radius) * (1.0 - progress)
+                    r = int(color[0] * intensity)
+                    g = int(color[1] * intensity)
+                    b = int(color[2] * intensity)
+
+                    set_color(midi_out, x, y, r, g, b)
+
+        time.sleep(0.01)
+
+def handle_input(midi_in):
+    while should_run:
+        msg = midi_in.get_message()
+        if msg:
+            message, delta_time = msg
+            if len(message) == 3:
+                status, key, velocity = message
+
+                # Convert key to x,y coordinates
+                x = key % 16
+                y = 8 - (key // 16)
+
+                if status == NOTE_ON and velocity > 0:
+                    # Key pressed
+                    if (x, y) in playlist_mappings:
+                        # Create blow effect in a separate thread
+                        effect_thread = threading.Thread(
+                            target=create_blow_effect,
+                            args=(midi_out, x, y),
+                            kwargs={'color': (255, 200, 100)},  # Warm color for playlist buttons
+                            daemon=True
+                        )
+                        effect_thread.start()
+
+                        # Play playlist
+                        play_playlist_for_button(x, y)
+                    elif x == 8 and y == 8:  # Top-right button
+                        # Create blow effect with different color
+                        effect_thread = threading.Thread(
+                            target=create_blow_effect,
+                            args=(midi_out, x, y),
+                            kwargs={'color': (100, 255, 100)},  # Green for control button
+                            daemon=True
+                        )
+                        effect_thread.start()
+
+                        # Show devices
+                        show_spotify_devices()
+        time.sleep(0.001)  # Prevent CPU overload
+
 animations = {
     'rainbow': rainbow_wave,
     'matrix': matrix_rain,

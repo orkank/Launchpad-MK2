@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.launchpad.spotify</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/orkankoylu/Sites/launchpad_project/venv/bin/python3</string>
+        <string>/Users/orkankoylu/Sites/launchpad_project/mk2.py</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/orkankoylu/Library/Logs/launchpad_spotify.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/orkankoylu/Library/Logs/launchpad_spotify_error.log</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/orkankoylu/Sites/launchpad_project</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONPATH</key>
+        <string>/Users/orkankoylu/Sites/launchpad_project/venv/lib/python3.9/site-packages</string>
+    </dict>
+</dict>
+</plist>

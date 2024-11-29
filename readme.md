@@ -14,7 +14,7 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 - LED animations controllable via HTTP requests
 - Device selection for Spotify playback
 - Customizable playlist mappings
-- Web interface for remote control
+- Http interface for remote control
 
 ## Table of Contents
 - [Getting Started](#getting-started)
@@ -39,6 +39,7 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 - [Troubleshooting](#troubleshooting)
 - [Files](#files)
 - [Notes](#notes)
+- [Running as a Service (macOS)](#running-as-a-service-macos)
 
 ## Getting Started
 
@@ -62,7 +63,6 @@ pip install rtmidi flask spotipy
 1. Create a Spotify Developer Account:
    - Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
    - Log in with your Spotify account
-   - Accept the Developer Terms of Service
 
 2. Create a New Application:
    - Click "Create an App" button
@@ -191,22 +191,34 @@ You can start animations either through:
 3. Stop any running animation with the 'x' command
 ## Web Interface
 
-The script runs a web server on port 5125 with the following endpoints:
+The script runs a web server on port 5125. Visit `http://localhost:5125` in your browser to see all available commands.
 
-- `/animation/<name>` - Start an animation
-- `/stop` - Stop current animation
-- `/list` - List available animations
+### Available Endpoints
 
-Available animations:
-- rainbow
-- matrix
-- pulse
-- sparkle
-- wipe
-- snake
-- fireworks
-- rain
-- wave
+#### Animations
+- `GET /` - Show all available commands and documentation
+- `GET /animation/<name>` - Start an animation
+- `GET /stop` - Stop current animation
+- `GET /list` - List available animations
+
+#### Spotify Control
+- `GET /devices` - List available Spotify devices
+- `GET /device/<id>` - Select Spotify device by ID
+
+### Example Usage
+```bash
+# List available animations
+curl http://localhost:5125/list
+
+# Start rainbow animation
+curl http://localhost:5125/animation/rainbow
+
+# Stop current animation
+curl http://localhost:5125/stop
+
+# List Spotify devices
+curl http://localhost:5125/devices
+```
 
 ## Launchpad Layout
 
@@ -215,21 +227,28 @@ The Launchpad MK2 has a 9x9 grid of buttons (including the top row and right col
 
 ```
    0   1   2   3   4   5   6   7   8  (x)
-0  □   □   □   □   □   □   □   □   ▷
-1  □   □   □   □   □   □   □   □   ▷
-2  □   □   □   □   □   □   □   □   ▷
-3  □   □   □   □   □   □   □   □   ▷
-4  □   □   □   □   □   □   □   □   ▷
-5  □   □   □   □   □   □   □   □   ▷
-6  □   □   □   □   □   □   □   □   ▷
 7  □   □   □   □   □   □   □   □   ▷
+6  □   □   □   □   □   □   □   □   ▷
+5  □   □   □   □   □   □   □   □   ▷
+4  □   □   □   □   □   □   □   □   ▷
+3  □   □   □   □   □   □   □   □   ▷
+2  □   □   □   □   □   □   □   □   ▷
+1  □   □   □   □   □   □   □   □   ▷
+0  □   □   □   □   □   □   □   □   ▷
 8  ▽   ▽   ▽   ▽   ▽   ▽   ▽   ▽   ⬚
 (y)
 ```
-- Main grid: (0,0) to (7,7)
+- Main grid: (0,7) to (7,0)
 - Top row: (0,8) to (7,8)
 - Right column: (8,0) to (8,7)
 - Top-right corner: (8,8)
+
+Example coordinates:
+- (0,7): Bottom-left corner
+- (7,7): Bottom-right (excluding right column)
+- (0,0): Top-left
+- (7,0): Top-right (excluding right column)
+- (8,8): Top-right corner (special function button)
 
 ### Control Buttons
 - `l` - List all available playlists
@@ -276,3 +295,58 @@ If you successfully run this on other operating systems, please let us know so w
 - Requires Spotify Premium for playback control
 - Playlist names are case-insensitive but must otherwise match exactly
 - The script must be run from a terminal that can handle input commands
+
+## Running as a Service (macOS)
+
+You can set up the script to run automatically on macOS startup:
+
+1. Edit the service file:
+   ```bash
+   # Create a copy of the plist file
+   cp com.launchpad.spotify.plist ~/Library/LaunchAgents/
+   ```
+
+2. Edit the plist file to match your system:
+   - Replace `/full/path/to/your/mk2.py` with the actual path to your script
+   - Replace `YOUR_USERNAME` with your macOS username
+   - Update the `WorkingDirectory` to match your script's location
+
+3. Set proper permissions:
+   ```bash
+   chmod 644 ~/Library/LaunchAgents/com.launchpad.spotify.plist
+   ```
+
+4. Load the service:
+   ```bash
+   launchctl load ~/Library/LaunchAgents/com.launchpad.spotify.plist
+   ```
+
+5. Start the service:
+   ```bash
+   launchctl start com.launchpad.spotify
+   ```
+
+### Service Management Commands
+```bash
+# Start the service
+launchctl start com.launchpad.spotify
+
+# Stop the service
+launchctl stop com.launchpad.spotify
+
+# Unload the service (remove from startup)
+launchctl unload ~/Library/LaunchAgents/com.launchpad.spotify.plist
+
+# Check service status
+launchctl list | grep launchpad
+
+# View logs
+tail -f ~/Library/Logs/launchpad_spotify.log
+tail -f ~/Library/Logs/launchpad_spotify_error.log
+```
+
+### Important Notes
+- Make sure all setup steps (Spotify authentication, etc.) are completed before running as a service
+- The service will start automatically on system boot
+- Logs are stored in `~/Library/Logs/`
+- If you update the script, restart the service for changes to take effect
