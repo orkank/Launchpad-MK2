@@ -1,28 +1,41 @@
 # Launchpad MK2 Spotify Controller
 
-Control your Spotify playback using a Novation Launchpad MK2. Features include playlist control, device selection, and LED animations.
+This project was created to repurpose an old Novation Launchpad MK2 as a Spotify controller. The script allows you to control Spotify playback and create LED animations through both direct interaction and HTTP requests, enabling integration with other applications.
+
+## Disclaimer
+- This is a personal project created for my own use with an old Launchpad MK2
+- Use this script at your own risk
+- No warranty or guarantee is provided
+- The code and documentation may have conflicts or inconsistencies
+- If you encounter issues, please open a GitHub issue for discussion
+
+### Features
+- Spotify playlist control through Launchpad buttons
+- LED animations controllable via HTTP requests
+- Device selection for Spotify playback
+- Customizable playlist mappings
+- Web interface for remote control
 
 ## Table of Contents
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-  - [Configuration](#configuration)
+- [Spotify Developer Setup](#spotify-developer-setup)
+- [Configuration](#configuration)
+  - [Playlist Configuration](#playlist-configuration)
 - [Running the Script](#running-the-script)
 - [Commands](#commands)
   - [Available Animations](#available-animations)
 - [Web Interface](#web-interface)
-- [Launchpad Key Mapping](#launchpad-key-mapping)
-  - [Grid Layout](#grid-layout)
-  - [Playlist Mapping](#playlist-mapping)
-  - [Special Buttons](#special-buttons)
-  - [Tips for Mapping](#tips-for-mapping)
-  - [Example Thematic Layout](#example-thematic-layout)
+- [Launchpad Layout](#launchpad-layout)
+  - [Grid Reference](#grid-reference)
+  - [Control Buttons](#control-buttons)
+  - [Example Layouts](#example-layouts)
 - [System Requirements & Compatibility](#system-requirements--compatibility)
   - [Tested Environment](#tested-environment)
   - [Important Notes](#important-notes)
   - [macOS Setup](#macos-setup)
   - [Known Issues](#known-issues)
-- [Spotify Developer Setup](#spotify-developer-setup)
 - [Troubleshooting](#troubleshooting)
 - [Files](#files)
 - [Notes](#notes)
@@ -44,7 +57,48 @@ Control your Spotify playback using a Novation Launchpad MK2. Features include p
 pip install rtmidi flask spotipy
 ```
 
-### Configuration
+## Spotify Developer Setup
+
+1. Create a Spotify Developer Account:
+   - Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+   - Log in with your Spotify account
+   - Accept the Developer Terms of Service
+
+2. Create a New Application:
+   - Click "Create an App" button
+   - Fill in the application details:
+     - App name: (e.g., "Launchpad Controller")
+     - App description: (e.g., "Launchpad MK2 Spotify Controller")
+     - Redirect URI: `http://localhost:8888/callback`
+   - Click "Create"
+
+3. Get Your Credentials:
+   - Once created, you'll see your app in the dashboard
+   - Click on your app to view settings
+   - Note down the following:
+     - Client ID
+     - Client Secret (click "View Client Secret" to reveal)
+
+4. Create `.secret` file:
+   - Create a file named `.secret` in the same directory as the script
+   - Add your credentials in this format:
+```
+client_id=YOUR_CLIENT_ID
+client_secret=YOUR_CLIENT_SECRET
+```
+   - Save the file
+   - Note: Never share or commit your `.secret` file!
+
+5. Required Spotify Permissions:
+   - Your app needs the following scopes:
+     - `user-modify-playback-state`
+     - `user-read-playback-state`
+     - `playlist-read-private`
+   - These are automatically requested during authentication
+
+[Source: Spotify Web API Getting Started Guide](https://developer.spotify.com/documentation/web-api/tutorials/getting-started)
+
+## Configuration
 
 ### Playlist Configuration
 
@@ -154,9 +208,9 @@ Available animations:
 - rain
 - wave
 
-## Launchpad Key Mapping
+## Launchpad Layout
 
-### Grid Layout
+### Grid Reference
 The Launchpad MK2 has a 9x9 grid of buttons (including the top row and right column). The coordinates are mapped as follows:
 
 ```
@@ -176,6 +230,19 @@ The Launchpad MK2 has a 9x9 grid of buttons (including the top row and right col
 - Top row: (0,8) to (7,8)
 - Right column: (8,0) to (8,7)
 - Top-right corner: (8,8)
+
+### Control Buttons
+- `l` - List all available playlists
+- `a` - List and start animations
+- `x` - Stop current animation
+- `q` - Quit the application
+
+### Example Layouts
+- Grid Layout
+- Playlist Mapping
+- Special Buttons
+- Tips for Mapping
+- Example Thematic Layout
 
 ## System Requirements & Compatibility
 
@@ -209,44 +276,3 @@ If you successfully run this on other operating systems, please let us know so w
 - Requires Spotify Premium for playback control
 - Playlist names are case-insensitive but must otherwise match exactly
 - The script must be run from a terminal that can handle input commands
-
-## Spotify Developer Setup
-
-1. Create a Spotify Developer Account:
-   - Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-   - Log in with your Spotify account
-   - Accept the Developer Terms of Service
-
-2. Create a New Application:
-   - Click "Create an App" button
-   - Fill in the application details:
-     - App name: (e.g., "Launchpad Controller")
-     - App description: (e.g., "Launchpad MK2 Spotify Controller")
-     - Redirect URI: `http://localhost:8888/callback`
-   - Click "Create"
-
-3. Get Your Credentials:
-   - Once created, you'll see your app in the dashboard
-   - Click on your app to view settings
-   - Note down the following:
-     - Client ID
-     - Client Secret (click "View Client Secret" to reveal)
-
-4. Create `.secret` file:
-   - Create a file named `.secret` in the same directory as the script
-   - Add your credentials in this format:
-```
-client_id=YOUR_CLIENT_ID
-client_secret=YOUR_CLIENT_SECRET
-```
-   - Save the file
-   - Note: Never share or commit your `.secret` file!
-
-5. Required Spotify Permissions:
-   - Your app needs the following scopes:
-     - `user-modify-playback-state`
-     - `user-read-playback-state`
-     - `playlist-read-private`
-   - These are automatically requested during authentication
-
-[Source: Spotify Web API Getting Started Guide](https://developer.spotify.com/documentation/web-api/tutorials/getting-started)
