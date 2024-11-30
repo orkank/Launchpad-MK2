@@ -1,0 +1,39 @@
+{
+  "mappings": {
+    "0,7": {
+      "name": "dream catcher",
+      "description": ""
+    },
+    "1,7": {
+      "name": "Jakuzi",
+      "description": ""
+    },
+    "2,7": {
+      "name": "War is coming",
+      "description": ""
+    },
+    "3,7": {
+      "name": "October",
+      "description": ""
+    },
+    "4,7": {
+      "name": "The Playlist",
+      "description": ""
+    },
+    "5,7": {
+      "name": "The Playlist",
+      "description": ""
+    },
+
+    "0,0": {
+      "name": "Trip",
+      "description": "Top-left area - Travel vibes"
+    },
+
+    "0,1": {
+      "name": "More Coda",
+      "description": ""
+    }
+
+  }
+}

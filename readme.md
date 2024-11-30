@@ -14,7 +14,6 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 - LED animations controllable via HTTP requests
 - Device selection for Spotify playback
 - Customizable playlist mappings
-- Http interface for remote control
 
 ## Table of Contents
 - [Getting Started](#getting-started)
@@ -30,7 +29,6 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 - [Launchpad Layout](#launchpad-layout)
   - [Grid Reference](#grid-reference)
   - [Control Buttons](#control-buttons)
-  - [Example Layouts](#example-layouts)
 - [System Requirements & Compatibility](#system-requirements--compatibility)
   - [Tested Environment](#tested-environment)
   - [Important Notes](#important-notes)
@@ -55,7 +53,7 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 1. Install required Python packages:
 
 ```bash
-pip install rtmidi flask spotipy
+pip install rtmidi flask spotipy watchdog
 ```
 
 ## Spotify Developer Setup
@@ -255,13 +253,6 @@ Example coordinates:
 - `a` - List and start animations
 - `x` - Stop current animation
 - `q` - Quit the application
-
-### Example Layouts
-- Grid Layout
-- Playlist Mapping
-- Special Buttons
-- Tips for Mapping
-- Example Thematic Layout
 
 ## System Requirements & Compatibility
 

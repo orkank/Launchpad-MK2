@@ -10,6 +10,9 @@ from queue import Queue
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import json
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+import os
 
 app = Flask(__name__)
 
@@ -334,8 +337,26 @@ def show_spotify_devices():
     except Exception as e:
         print(f"Error getting devices: {str(e)}")
 
+def check_playlist_file_changed():
+    """Check if playlist file has been modified"""
+    global playlist_mappings, last_playlist_modified
+    try:
+        current_mtime = os.path.getmtime('.playlists')
+        if not hasattr(check_playlist_file_changed, 'last_mtime'):
+            check_playlist_file_changed.last_mtime = current_mtime
+        elif current_mtime > check_playlist_file_changed.last_mtime:
+            print("\nPlaylist file changed, reloading mappings...")
+            playlist_mappings = load_playlist_mappings()
+            check_playlist_file_changed.last_mtime = current_mtime
+            print("Playlist mappings updated!")
+    except Exception as e:
+        pass
+
 def on_midi_message(message, time_stamp):
     status_byte, note, velocity = message[0]
+
+    # Check for playlist file changes
+    check_playlist_file_changed()
 
     if note >= 104:  # Top row
         x = note - 104
@@ -348,6 +369,7 @@ def on_midi_message(message, time_stamp):
         y = (note - 11) // 10
 
     print(f"Button pressed - x: {x}, y: {y}, velocity: {velocity}")
+    create_explosion_effect(midi_out, x, y)
 
     if velocity > 0:  # Button press (not release)
         if x == 8 and y == 8:  # Top-right button ('S' button)
@@ -649,8 +671,8 @@ def wave_collision(midi_out):
         phase += 1
         time.sleep(0.05)
 
-def create_blow_effect(midi_out, center_x, center_y, color=(255, 255, 255), duration=0.3, max_radius=3):
-    """Creates a temporary blow effect around a pressed key"""
+def create_explosion_effect(midi_out, center_x, center_y, color=(255, 255, 255), duration=0.1, max_radius=3):
+    """Creates a temporary explosion effect around a pressed key"""
     original_animation = current_animation
     start_time = time.time()
 
@@ -663,7 +685,7 @@ def create_blow_effect(midi_out, center_x, center_y, color=(255, 255, 255), dura
             # Let the current animation update one frame
             time.sleep(0.01)
 
-        # Draw the blow effect
+        # Draw the explosion effect
         for y in range(max(0, int(center_y - max_radius)), min(9, int(center_y + max_radius + 1))):
             for x in range(max(0, int(center_x - max_radius)), min(9, int(center_x + max_radius + 1))):
                 dx = x - center_x
@@ -680,46 +702,6 @@ def create_blow_effect(midi_out, center_x, center_y, color=(255, 255, 255), dura
                     set_color(midi_out, x, y, r, g, b)
 
         time.sleep(0.01)
-
-def handle_input(midi_in):
-    while should_run:
-        msg = midi_in.get_message()
-        if msg:
-            message, delta_time = msg
-            if len(message) == 3:
-                status, key, velocity = message
-
-                # Convert key to x,y coordinates
-                x = key % 16
-                y = 8 - (key // 16)
-
-                if status == NOTE_ON and velocity > 0:
-                    # Key pressed
-                    if (x, y) in playlist_mappings:
-                        # Create blow effect in a separate thread
-                        effect_thread = threading.Thread(
-                            target=create_blow_effect,
-                            args=(midi_out, x, y),
-                            kwargs={'color': (255, 200, 100)},  # Warm color for playlist buttons
-                            daemon=True
-                        )
-                        effect_thread.start()
-
-                        # Play playlist
-                        play_playlist_for_button(x, y)
-                    elif x == 8 and y == 8:  # Top-right button
-                        # Create blow effect with different color
-                        effect_thread = threading.Thread(
-                            target=create_blow_effect,
-                            args=(midi_out, x, y),
-                            kwargs={'color': (100, 255, 100)},  # Green for control button
-                            daemon=True
-                        )
-                        effect_thread.start()
-
-                        # Show devices
-                        show_spotify_devices()
-        time.sleep(0.001)  # Prevent CPU overload
 
 animations = {
     'rainbow': rainbow_wave,
@@ -864,11 +846,36 @@ def print_available_playlists():
     except Exception as e:
         print(f"Error reading playlist file: {str(e)}")
 
+def setup_playlist_watcher():
+    try:
+        event_handler = PlaylistFileHandler()
+        observer = Observer()
+        observer.schedule(event_handler, path='.', recursive=False)
+        observer.daemon = True  # Make sure the observer thread is daemonic
+        observer.start()
+        return observer
+    except Exception as e:
+        print(f"Warning: Could not setup playlist watcher: {e}")
+        return None
+
 if __name__ == '__main__':
     try:
         # Initialize Spotify
         if not initialize_spotify():
             print("Failed to initialize Spotify. Continuing without Spotify support.")
+
+        # Load initial playlist mappings
+        playlist_mappings = load_playlist_mappings()
+
+        # Initialize MIDI before starting watchers
+        midi_out, midi_in = initialize_launchpad()
+
+        # Start playlist file watcher in try-except block
+        try:
+            playlist_observer = setup_playlist_watcher()
+        except Exception as e:
+            print(f"Warning: Playlist watcher not started: {e}")
+            playlist_observer = None
 
         # Start animation thread
         animation_thread = threading.Thread(target=animation_worker, daemon=True)
@@ -920,3 +927,6 @@ if __name__ == '__main__':
         should_run = False
         if animation_thread:
             animation_thread.join(timeout=1)
+        if 'playlist_observer' in locals() and playlist_observer:
+            playlist_observer.stop()
+            playlist_observer.join()
