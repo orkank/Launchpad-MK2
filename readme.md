@@ -2,7 +2,7 @@
 
 This project was created to repurpose an old Novation Launchpad MK2 as a Spotify controller. The script allows you to control Spotify playback and create LED animations through both direct interaction and HTTP requests, enabling integration with other applications.
 
-![Launchpad MK2 Spotify Controller](https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExc3oxZHc3eWN4YTJvcDRxN2hveHpvYmo2a24waWg0eXhucWhoNWJ2cSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/Zmjxih3FL25oKoTLjC/giphy.gif)
+![Launchpad MK2 Spotify Controller](giphy.gif)
 
 ## Disclaimer
 - This is a personal project created for my own use with an old Launchpad MK2
