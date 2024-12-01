@@ -2,17 +2,19 @@
   "mappings": {
     "0,7": {
       "name": "dream catcher",
-      "description": "Bottom-left area - Chill playlist"
+      "description": "Bottom-left area - Chill playlist",
+      "animation": "rainbow"
     },
 
     "0,0": {
       "name": "Trip",
-      "description": "Top-left area - Travel vibes"
+      "description": "Top-left area - Travel vibes",
+      "animation": "pulse"
     },
 
     "0,1": {
       "name": "More Coda",
-      "description": ""
+      "description": "matrix"
     }
 
   }

@@ -2,6 +2,8 @@
 
 This project was created to repurpose an old Novation Launchpad MK2 as a Spotify controller. The script allows you to control Spotify playback and create LED animations through both direct interaction and HTTP requests, enabling integration with other applications.
 
+![Launchpad MK2 Spotify Controller](https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExc3oxZHc3eWN4YTJvcDRxN2hveHpvYmo2a24waWg0eXhucWhoNWJ2cSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/Zmjxih3FL25oKoTLjC/giphy.gif)
+
 ## Disclaimer
 - This is a personal project created for my own use with an old Launchpad MK2
 - Use this script at your own risk
@@ -143,6 +145,46 @@ To configure:
 Tips:
 - Keep playlist names exactly as they appear in Spotify
 - Use descriptions to remember what each button does
+
+## Playlist Configuration
+
+### playlists.json Format
+The `playlists.json` file maps Launchpad buttons to Spotify playlists and optional animations. Each mapping contains:
+- `name`: The exact name of your Spotify playlist
+- `animation` (optional): The animation to play when this playlist starts
+
+Example configuration:
+```json
+{
+    "mappings": {
+        "0,7": {
+            "name": "My Workout Mix",
+            "animation": "rainbow"
+        },
+        "1,7": {
+            "name": "Chill Vibes",
+            "animation": "pulse"
+        },
+        "2,7": {
+            "name": "Party Playlist"
+            // No animation specified - will keep current animation
+        }
+    }
+}
+```
+
+Available animations:
+- `rainbow`: Color wave effect
+- `matrix`: Matrix-style falling effect
+- `pulse`: Pulsing rings
+- `sparkle`: Random sparkling lights
+- `wipe`: Color wipe effect
+- `snake`: Moving snake pattern
+- `fireworks`: Firework explosions
+- `rain`: Falling rain effect
+- `wave`: Wave collision pattern
+
+The animation will automatically change when you start the playlist. If no animation is specified, the current animation will continue playing.
 
 ## Running the Script
 

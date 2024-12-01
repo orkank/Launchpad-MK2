@@ -13,6 +13,7 @@ import json
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import os
+import requests
 
 app = Flask(__name__)
 
@@ -31,7 +32,10 @@ def load_playlist_mappings():
             mappings = {}
             for coord, info in data['mappings'].items():
                 x, y = map(int, coord.split(','))
-                mappings[(x, y)] = info['name']
+                mappings[(x, y)] = {
+                    'name': info['name'],
+                    'animation': info.get('animation')  # Use get() to make animation optional
+                }
             return mappings
     except FileNotFoundError:
         print("Warning: playlists.json not found, using empty mapping")
@@ -398,47 +402,34 @@ def get_playlist_id_by_name(playlist_name):
     return None
 
 def play_playlist_for_button(x, y):
+    """Handle playlist button press"""
     if spotify is None:
         print("Spotify not initialized")
         return
 
     if (x, y) in playlist_mappings:
-        try:
-            # Get available devices
-            devices = spotify.devices()
+        mapping = playlist_mappings[(x, y)]
+        playlist_name = mapping['name']
 
-            # Find an active device or the first available device
-            device_id = None
-            for device in devices['devices']:
-                if device['is_active']:
-                    device_id = device['id']
-                    break
-                elif device['type'] == 'Computer':  # Fallback to first computer device
-                    device_id = device['id']
+        # Handle animation if specified
+        if 'animation' in mapping and mapping['animation']:
+            global current_animation
+            if mapping['animation'] in animations:
+                current_animation = mapping['animation']
+                print(f"Changed animation to: {mapping['animation']}")
+            else:
+                print(f"Warning: Unknown animation '{mapping['animation']}'")
 
-            if not device_id:
-                print("No Spotify devices found. Please open Spotify app first!")
-                return
-
-            # Get playlist ID from name
-            playlist_name = playlist_mappings[(x, y)]
-            playlist_id = get_playlist_id_by_name(playlist_name)
-
-            if not playlist_id:
-                print(f"Could not find playlist: {playlist_name}")
-                return
-
-            # Start playback on the selected device
-            spotify.start_playback(
-                device_id=device_id,
-                context_uri=f'spotify:playlist:{playlist_id}'
-            )
-            print(f"Playing playlist '{playlist_name}' for button ({x}, {y})")
-
-        except Exception as e:
-            print(f"Error playing playlist: {str(e)}")
-            if "No active device found" in str(e):
-                print("\nTip: Make sure Spotify is open and playing/paused")
+        # Play the playlist
+        playlist_id = get_playlist_id_by_name(playlist_name)
+        if playlist_id:
+            try:
+                spotify.start_playback(context_uri=f'spotify:playlist:{playlist_id}')
+                print(f"Playing playlist: {playlist_name}")
+            except Exception as e:
+                print(f"Error playing playlist: {str(e)}")
+        else:
+            print(f"Playlist not found: {playlist_name}")
 
 def fetch_and_save_playlists():
     if spotify is None:
@@ -703,6 +694,48 @@ def create_explosion_effect(midi_out, center_x, center_y, color=(255, 255, 255),
 
         time.sleep(0.01)
 
+def temperature_map(midi_out):
+    """Display temperature using colors (requires OpenWeatherMap API)"""
+    # You'll need to add these to your .secret file
+    try:
+        with open('.secret', 'r') as f:
+            secrets = dict(line.strip().split('=') for line in f if '=' in line)
+            API_KEY = secrets.get('weather_api_key')
+            CITY_ID = secrets.get('city_id', '2643743')  # Default: London
+    except:
+        print("Weather API key not found in .secret file")
+        return
+
+    while should_run and current_animation == 'temperature':
+        try:
+            url = f"http://api.openweathermap.org/data/2.5/weather?id={CITY_ID}&appid={API_KEY}&units=metric"
+            response = requests.get(url)
+            data = response.json()
+            temp = data['main']['temp']
+
+            # Map temperature to color (blue=-10°C, green=10°C, red=30°C)
+            normalized_temp = (temp + 10) / 40  # -10 to 30 range
+            if normalized_temp < 0.5:  # Cold
+                r, g, b = 0, int(255 * normalized_temp * 2), 255
+            else:  # Warm
+                r, g, b = 255, int(255 * (1 - (normalized_temp - 0.5) * 2)), 0
+
+            # Display temperature
+            for y in range(9):
+                for x in range(9):
+                    set_color(midi_out, x, y, r, g, b)
+
+            # Show temperature value in corner
+            temp_int = int(temp)
+            if temp_int < 0:
+                set_color(midi_out, 0, 0, 0, 0, 255)  # Blue for negative
+            set_color(midi_out, 1, 0, r, g, b)  # Temperature color
+
+        except Exception as e:
+            print(f"Weather error: {e}")
+
+        time.sleep(300)  # Update every 5 minutes
+
 animations = {
     'rainbow': rainbow_wave,
     'matrix': matrix_rain,
@@ -712,7 +745,8 @@ animations = {
     'snake': snake,
     'fireworks': fireworks,
     'rain': rain,
-    'wave': wave_collision
+    'wave': wave_collision,
+    'temperature': temperature_map,
 }
 
 def animation_worker():
@@ -778,7 +812,7 @@ def index():
         'animations': {
             'description': 'Control LED animations',
             'endpoints': {
-                '/animation/<name>': 'Start an animation (available: rainbow, matrix, pulse, sparkle, wipe, snake, fireworks, rain, wave)',
+                '/animation/<name>': 'Start an animation (available: rainbow, matrix, pulse, sparkle, wipe, snake, fireworks, rain, wave, temperature)',
                 '/stop': 'Stop current animation',
                 '/list': 'List all available animations'
             }
