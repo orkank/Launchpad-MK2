@@ -9,7 +9,7 @@
     "0,0": {
       "name": "Trip",
       "description": "Top-left area - Travel vibes",
-      "animation": "pulse"
+      "animation": "equalizer"
     },
 
     "0,1": {

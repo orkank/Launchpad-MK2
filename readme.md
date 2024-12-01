@@ -12,10 +12,35 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 - If you encounter issues, please open a GitHub issue for discussion
 
 ### Features
-- Spotify playlist control through Launchpad buttons
+- Spotify playlist, play/pause and next/previous control through Launchpad buttons
 - LED animations controllable via HTTP requests
 - Device selection for Spotify playback
-- Customizable playlist mappings
+- Customizable playlist mappings with animations
+
+## Updates
+
+### Default Device Support
+Added support for automatically using a default Spotify device when no active device is found.
+
+To configure:
+1. Add your preferred device ID to `.secret`:
+```
+client_id=YOUR_CLIENT_ID
+client_secret=YOUR_CLIENT_SECRET
+default_device_id=YOUR_DEFAULT_DEVICE_ID
+```
+
+2. To find your device ID:
+   - Use the 'S' command to show available devices
+   - Copy the ID of your preferred device
+   - Add it to `.secret` as shown above
+
+This fixes the "No active device found" error that occurred when:
+- Spotify closes and opens
+- No device was actively playing
+- Multiple devices were available but none active
+
+Note: Make sure Spotify is open on your default device for this to work properly.
 
 ## Table of Contents
 - [Getting Started](#getting-started)
@@ -55,7 +80,7 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 1. Install required Python packages:
 
 ```bash
-pip install rtmidi flask spotipy watchdog
+pip install rtmidi flask spotipy watchdog requests
 ```
 
 ## Spotify Developer Setup
@@ -140,7 +165,7 @@ To configure:
 1. Use 'l' command to list available playlists
 2. Copy exact playlist names
 3. Edit playlists.json
-4. Restart the script to load new mappings
+4. New playlist mappings will be loaded automatically
 
 Tips:
 - Keep playlist names exactly as they appear in Spotify
@@ -267,8 +292,8 @@ The Launchpad MK2 has a 9x9 grid layout. The coordinate system works as follows:
 
 ```
    0   1   2   3   4   5   6   7   8  (x)
-8  △   ▽   <   ▷   ◉   ◉   ◉   ◉   S   Upper row
-7  □   □   □   □   □   □   □   □   ▷   Playlist row
+8  +   -   <   >   □   □   □   □   S   Controls
+7  □   □   □   □   □   □   □   □   ▷   Playlists
 6  □   □   □   □   □   □   □   □   ▷
 5  □   □   □   □   □   □   □   □   ▷
 4  □   □   □   □   □   □   □   □   ▷

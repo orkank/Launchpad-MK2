@@ -244,67 +244,41 @@ def random_sparkle(midi_out):
         time.sleep(0.05)
 
 def initialize_spotify():
-    global spotify
+    """Initialize Spotify client with required scopes"""
     try:
-        # Read credentials from .secret file
-        credentials = {}
-        try:
-            with open('.secret', 'r') as f:
-                for line in f:
-                    if '=' in line:
-                        key, value = line.strip().split('=', 1)
-                        credentials[key] = value
-        except FileNotFoundError:
-            print("Error: .secret file not found!")
-            print("Please create a .secret file with your Spotify credentials:")
-            print("client_id=YOUR_CLIENT_ID")
-            print("client_secret=YOUR_CLIENT_SECRET")
+        global spotify
+        scope = [
+            'user-read-playback-state',
+            'user-modify-playback-state',
+            'user-read-currently-playing',
+            'playlist-read-private',
+            'playlist-read-collaborative',
+            'app-remote-control',
+            'streaming',
+            'user-read-playback-position',  # Add this scope
+            'user-read-recently-played'      # Add this scope
+        ]
+
+        with open('.secret', 'r') as f:
+            secrets = dict(line.strip().split('=') for line in f if '=' in line)
+            client_id = secrets.get('client_id')
+            client_secret = secrets.get('client_secret')
+
+        if not client_id or not client_secret:
+            print("Missing Spotify credentials in .secret file")
             return False
 
-        if 'client_id' not in credentials or 'client_secret' not in credentials:
-            print("Error: Missing credentials in .secret file!")
-            print("File should contain client_id and client_secret")
-            return False
-
-        auth_manager = SpotifyOAuth(
-            client_id=credentials['client_id'],
-            client_secret=credentials['client_secret'],
+        spotify = spotipy.Spotify(auth_manager=SpotifyOAuth(
+            client_id=client_id,
+            client_secret=client_secret,
             redirect_uri='http://localhost:8888/callback',
-            scope='user-modify-playback-state user-read-playback-state playlist-read-private',
-            open_browser=False
-        )
-
-        # Check if there's a cached token and it's still valid
-        token_info = auth_manager.cache_handler.get_cached_token()
-        if not token_info or not auth_manager.validate_token(token_info):
-            # Get the authorization URL
-            auth_url = auth_manager.get_authorize_url()
-            print(f"\nPlease go to this URL and authorize the app:\n{auth_url}\n")
-
-            # Get the response URL from user
-            response = input("Enter the full redirect URL: ").strip()
-
-            # Extract code from response
-            code = auth_manager.parse_response_code(response)
-
-            # Get and cache the token
-            token_info = auth_manager.get_cached_token()
-            if not token_info:
-                token_info = auth_manager.get_access_token(code, as_dict=True)
-                auth_manager.cache_handler.save_token_to_cache(token_info)
-
-        spotify = spotipy.Spotify(auth_manager=auth_manager)
-
-        # Test the connection
-        spotify.current_user()  # This will raise an exception if authentication failed
-        print("Successfully connected to Spotify!")
+            scope=' '.join(scope),
+            open_browser=True
+        ))
         return True
 
     except Exception as e:
         print(f"Error initializing Spotify: {str(e)}")
-        if "invalid_grant" in str(e):
-            print("\nTip: The authorization code can only be used once.")
-            print("Try deleting the .cache file and running the script again.")
         return False
 
 def show_spotify_devices():
@@ -356,7 +330,35 @@ def check_playlist_file_changed():
     except Exception as e:
         pass
 
+def format_track_info(track, progress_ms=None):
+    """Format track information with time"""
+    if not track:
+        return "No track playing"
+
+    artists = ", ".join([artist['name'] for artist in track['artists']])
+    name = track['name']
+
+    # Format duration
+    duration_ms = track['duration_ms']
+    duration_min = int(duration_ms / 60000)
+    duration_sec = int((duration_ms % 60000) / 1000)
+
+    # Format progress if provided
+    if progress_ms is not None:
+        progress_min = int(progress_ms / 60000)
+        progress_sec = int((progress_ms % 60000) / 1000)
+        time_info = f"[{progress_min}:{progress_sec:02d}/{duration_min}:{duration_sec:02d}]"
+    else:
+        time_info = f"[{duration_min}:{duration_sec:02d}]"
+
+    return f"{artists} - {name} {time_info}"
+
 def on_midi_message(message, time_stamp):
+    """Callback function for MIDI messages"""
+    # Track button states
+    if not hasattr(on_midi_message, 'button_states'):
+        on_midi_message.button_states = {}
+
     status_byte, note, velocity = message[0]
 
     # Check for playlist file changes
@@ -372,14 +374,73 @@ def on_midi_message(message, time_stamp):
         x = (note - 11) % 10
         y = (note - 11) // 10
 
-    print(f"Button pressed - x: {x}, y: {y}, velocity: {velocity}")
-    create_explosion_effect(midi_out, x, y)
+    button_id = f"{x},{y}"
 
-    if velocity > 0:  # Button press (not release)
-        if x == 8 and y == 8:  # Top-right button ('S' button)
-            show_spotify_devices()
-        else:
+    # Handle button press and release
+    if velocity > 0:  # Button press
+        # Skip if button is already pressed
+        if button_id in on_midi_message.button_states and on_midi_message.button_states[button_id]:
+            return
+
+        # Mark button as pressed
+        on_midi_message.button_states[button_id] = True
+
+        print(f"Button pressed - x: {x}, y: {y}, velocity: {velocity}")
+        create_explosion_effect(midi_out, x, y)
+
+        # Control buttons (top row)
+        if y == 8:
+            if x == 0:  # Volume Up
+                try:
+                    current = spotify.current_playback()
+                    if current and current['device']:
+                        volume = min(100, current['device']['volume_percent'] + 10)
+                        spotify.volume(volume)
+                        print(f"Volume up: {volume}%")
+                except Exception as e:
+                    print(f"Error adjusting volume: {e}")
+
+            elif x == 1:  # Volume Down
+                try:
+                    current = spotify.current_playback()
+                    if current and current['device']:
+                        volume = max(0, current['device']['volume_percent'] - 10)
+                        spotify.volume(volume)
+                        print(f"Volume down: {volume}%")
+                except Exception as e:
+                    print(f"Error adjusting volume: {e}")
+
+            elif x == 2:  # Previous Track
+                try:
+                    spotify.previous_track()
+                    # Wait briefly for track to change
+                    time.sleep(0.1)
+                    current = spotify.current_playback()
+                    if current and current['item']:
+                        print(f"Previous track: {format_track_info(current['item'], current['progress_ms'])}")
+                except Exception as e:
+                    print(f"Error: {e}")
+
+            elif x == 3:  # Next Track
+                try:
+                    spotify.next_track()
+                    # Wait briefly for track to change
+                    time.sleep(0.1)
+                    current = spotify.current_playback()
+                    if current and current['item']:
+                        print(f"Next track: {format_track_info(current['item'], current['progress_ms'])}")
+                except Exception as e:
+                    print(f"Error: {e}")
+
+            elif x == 8:  # Spotify devices (existing functionality)
+                show_spotify_devices()
+
+        else:  # Regular playlist buttons
             play_playlist_for_button(x, y)
+
+    else:  # Button release (velocity = 0)
+        # Mark button as released
+        on_midi_message.button_states[button_id] = False
 
 def get_playlist_id_by_name(playlist_name):
     try:
@@ -411,25 +472,60 @@ def play_playlist_for_button(x, y):
         mapping = playlist_mappings[(x, y)]
         playlist_name = mapping['name']
 
-        # Handle animation if specified
-        if 'animation' in mapping and mapping['animation']:
-            global current_animation
-            if mapping['animation'] in animations:
-                current_animation = mapping['animation']
-                print(f"Changed animation to: {mapping['animation']}")
-            else:
-                print(f"Warning: Unknown animation '{mapping['animation']}'")
+        try:
+            # Get available devices
+            devices = spotify.devices()
 
-        # Play the playlist
-        playlist_id = get_playlist_id_by_name(playlist_name)
-        if playlist_id:
-            try:
-                spotify.start_playback(context_uri=f'spotify:playlist:{playlist_id}')
+            # Find an active device
+            device_id = None
+            for device in devices['devices']:
+                if device['is_active']:
+                    device_id = device['id']
+                    break
+
+            # If no active device, use default from .secret
+            if not device_id:
+                try:
+                    with open('.secret', 'r') as f:
+                        secrets = dict(line.strip().split('=') for line in f if '=' in line)
+                        default_device_id = secrets.get('default_device_id')
+                        if default_device_id:
+                            print(f"No active device found, using default device")
+                            device_id = default_device_id
+                        else:
+                            print("No default device configured in .secret file")
+                            return
+                except Exception as e:
+                    print(f"Error reading default device from .secret: {e}")
+                    return
+
+            # Handle animation if specified
+            if 'animation' in mapping and mapping['animation']:
+                global current_animation
+                if mapping['animation'] in animations:
+                    current_animation = mapping['animation']
+                    print(f"Changed animation to: {mapping['animation']}")
+
+            # Play the playlist with device_id
+            playlist_id = get_playlist_id_by_name(playlist_name)
+            if playlist_id:
+                spotify.start_playback(
+                    device_id=device_id,
+                    context_uri=f'spotify:playlist:{playlist_id}'
+                )
+                # Wait briefly for playback to start
+                time.sleep(0.1)
+                current = spotify.current_playback()
+                if current and current['item']:
+                    print(f"Playing: {format_track_info(current['item'], current['progress_ms'])}")
                 print(f"Playing playlist: {playlist_name}")
-            except Exception as e:
-                print(f"Error playing playlist: {str(e)}")
-        else:
-            print(f"Playlist not found: {playlist_name}")
+            else:
+                print(f"Playlist not found: {playlist_name}")
+
+        except Exception as e:
+            print(f"Error playing playlist: {str(e)}")
+            if "No active device found" in str(e):
+                print("Tip: Make sure Spotify is open on your device")
 
 def fetch_and_save_playlists():
     if spotify is None:
@@ -865,6 +961,97 @@ def ambient_animation(midi_out):
                 set_color(midi_out, x, y, r, g, b)
         time.sleep(0.1)
 
+def get_current_audio_features():
+    """Get audio features for currently playing track"""
+    try:
+        current = spotify.current_playback()
+        if current and current['item']:
+            track_id = current['item']['id']
+            features = spotify.audio_features([track_id])[0]
+            return features
+        return None
+    except Exception as e:
+        print(f"Error getting audio features: {e}")
+        return None
+
+def equalizer_animation(midi_out):
+    """Equalizer visualization based on Spotify audio features"""
+    last_track_id = None
+
+    while should_run and current_animation == 'equalizer':
+        try:
+            current = spotify.current_playback()
+            if not current or not current['is_playing']:
+                # Show idle animation when not playing
+                clear_all(midi_out)
+                for x in range(9):
+                    height = int(2 + math.sin(time.time() * 2 + x/2) * 2)
+                    for y in range(height):
+                        set_color(midi_out, x, y, 0, 255, 100)
+                time.sleep(0.1)
+                continue
+
+            track_id = current['item']['id']
+
+            # Print track info when track changes
+            if track_id != last_track_id:
+                print(f"Now playing: {format_track_info(current['item'], current['progress_ms'])}")
+                last_track_id = track_id
+
+                # Get new features when track changes
+                features = get_current_audio_features()
+                if not features:
+                    continue
+
+                # Extract relevant features
+                energy = features['energy']
+                danceability = features['danceability']
+                valence = features['valence']
+                tempo = features['tempo']
+
+                # Clear grid
+                clear_all(midi_out)
+
+                # Create visualization based on features
+                # Energy (columns 0-2)
+                height = int(energy * 8)
+                for x in range(3):
+                    for y in range(height):
+                        set_color(midi_out, x, y, 255, 0, 0)  # Red for energy
+
+                # Danceability (columns 3-5)
+                height = int(danceability * 8)
+                for x in range(3, 6):
+                    for y in range(height):
+                        set_color(midi_out, x, y, 0, 255, 0)  # Green for danceability
+
+                # Valence (columns 6-8)
+                height = int(valence * 8)
+                for x in range(6, 9):
+                    for y in range(height):
+                        set_color(midi_out, x, y, 0, 0, 255)  # Blue for valence
+
+                # Add some animation based on tempo
+                pulse_time = time.time() * (tempo / 60)  # Pulses per second
+                pulse = (math.sin(pulse_time) + 1) / 2  # 0 to 1
+
+                # Add pulsing overlay
+                for x in range(9):
+                    for y in range(8):
+                        if midi_out:  # If LED is already lit
+                            r, g, b = 255, 255, 255
+                            intensity = pulse * 0.3  # 30% max intensity
+                            set_color(midi_out, x, y,
+                                    int(r * intensity),
+                                    int(g * intensity),
+                                    int(b * intensity))
+
+            time.sleep(0.05)  # Adjust for smoothness
+
+        except Exception as e:
+            print(f"Equalizer error: {e}")
+            time.sleep(1)
+
 animations = {
     'rainbow': rainbow_wave,
     'matrix': matrix_rain,
@@ -883,6 +1070,7 @@ animations = {
     'rock': rock_animation,
     'jazz': jazz_animation,
     'ambient': ambient_animation,
+    'equalizer': equalizer_animation,
 }
 
 def animation_worker():
