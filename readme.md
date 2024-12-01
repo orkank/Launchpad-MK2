@@ -263,11 +263,12 @@ curl http://localhost:5125/devices
 ## Launchpad Layout
 
 ### Grid Reference
-The Launchpad MK2 has a 9x9 grid of buttons (including the top row and right column). The coordinates are mapped as follows:
+The Launchpad MK2 has a 9x9 grid layout. The coordinate system works as follows:
 
 ```
    0   1   2   3   4   5   6   7   8  (x)
-7  □   □   □   □   □   □   □   □   ▷
+8  △   ▽   <   ▷   ◉   ◉   ◉   ◉   S   Upper row
+7  □   □   □   □   □   □   □   □   ▷   Playlist row
 6  □   □   □   □   □   □   □   □   ▷
 5  □   □   □   □   □   □   □   □   ▷
 4  □   □   □   □   □   □   □   □   ▷
@@ -275,20 +276,38 @@ The Launchpad MK2 has a 9x9 grid of buttons (including the top row and right col
 2  □   □   □   □   □   □   □   □   ▷
 1  □   □   □   □   □   □   □   □   ▷
 0  □   □   □   □   □   □   □   □   ▷
-8  ▽   ▽   ▽   ▽   ▽   ▽   ▽   ▽   ⬚
 (y)
 ```
-- Main grid: (0,7) to (7,0)
-- Top row: (0,8) to (7,8)
-- Right column: (8,0) to (8,7)
-- Top-right corner: (8,8)
+
+- x increases from left to right (0-8)
+- y decreases from top to bottom (8-0)
+- Upper row is y=8 (for special functions)
+- Main playlist buttons are typically on row y=7
+- The right column (x=8) contains control buttons (▷)
+- The top-right button (8,8) is reserved for Spotify device selection (S)
 
 Example coordinates:
-- (0,7): Bottom-left corner
-- (7,7): Bottom-right (excluding right column)
-- (0,0): Top-left
-- (7,0): Top-right (excluding right column)
-- (8,8): Top-right corner (special function button)
+- Top row buttons: (0,8), (1,8), etc.
+- First playlist position: (0,7)
+- Second playlist position: (1,7)
+- Third playlist position: (2,7)
+- Spotify device selection: (8,8)
+
+When configuring your playlists.json, use these coordinates:
+```json
+{
+    "mappings": {
+        "0,7": {
+            "name": "First Playlist",
+            "animation": "rainbow"
+        },
+        "1,7": {
+            "name": "Second Playlist",
+            "animation": "matrix"
+        }
+    }
+}
+```
 
 ### Control Buttons
 - `l` - List all available playlists
