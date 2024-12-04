@@ -2,37 +2,45 @@
   "mappings": {
     "0,7": {
       "name": "dream catcher",
-      "description": ""
+      "description": "",
+      "animation": "rainbow"
     },
     "1,7": {
       "name": "Jakuzi",
-      "description": ""
+      "description": "",
+      "animation": "fireworks"
     },
     "2,7": {
       "name": "War is coming",
-      "description": ""
+      "description": "",
+      "animation": "wipe"
     },
     "3,7": {
       "name": "October",
-      "description": ""
+      "description": "",
+      "animation": "snake"
     },
     "4,7": {
       "name": "The Playlist",
-      "description": ""
+      "description": "",
+      "animation": "matrix"
     },
     "5,7": {
       "name": "The Playlist",
-      "description": ""
+      "description": "",
+      "animation": "fireworks"
     },
 
     "0,0": {
       "name": "Trip",
-      "description": "Top-left area - Travel vibes"
+      "description": "Top-left area - Travel vibes",
+      "animation": "rain"
     },
 
     "0,1": {
       "name": "More Coda",
-      "description": ""
+      "description": "",
+      "animation": "sparkle"
     }
 
   }

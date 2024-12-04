@@ -14,6 +14,8 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import os
 import requests
+from homebridge import HomebridgeServer
+import argparse
 
 app = Flask(__name__)
 
@@ -23,6 +25,7 @@ animation_thread = None
 command_queue = Queue()
 should_run = True
 spotify = None
+last_animation = None
 
 def load_playlist_mappings():
     try:
@@ -353,6 +356,42 @@ def format_track_info(track, progress_ms=None):
 
     return f"{artists} - {name} {time_info}"
 
+def get_active_or_default_device():
+    """Get active device or set default from .secret"""
+    try:
+        # Get available devices
+        devices = spotify.devices()
+
+        # Find an active device
+        device_id = None
+        for device in devices['devices']:
+            if device['is_active']:
+                device_id = device['id']
+                break
+
+        # If no active device, use default from .secret
+        if not device_id:
+            try:
+                with open('.secret', 'r') as f:
+                    secrets = dict(line.strip().split('=') for line in f if '=' in line)
+                    default_device_id = secrets.get('default_device_id')
+                    if default_device_id:
+                        print(f"No active device found, using default device")
+                        spotify.start_playback(device_id=default_device_id)
+                        time.sleep(1)  # Wait for device activation
+                        device_id = default_device_id
+                    else:
+                        print("No default device configured in .secret file")
+                        return None
+            except Exception as e:
+                print(f"Error reading default device from .secret: {e}")
+                return None
+
+        return device_id
+    except Exception as e:
+        print(f"Error getting device: {e}")
+        return None
+
 def on_midi_message(message, time_stamp):
     """Callback function for MIDI messages"""
     # Track button states
@@ -392,48 +431,51 @@ def on_midi_message(message, time_stamp):
         if y == 8:
             if x == 0:  # Volume Up
                 try:
-                    current = spotify.current_playback()
-                    if current and current['device']:
-                        volume = min(100, current['device']['volume_percent'] + 10)
-                        spotify.volume(volume)
-                        print(f"Volume up: {volume}%")
+                    device_id = get_active_or_default_device()
+                    if device_id:
+                        current = spotify.current_playback()
+                        if current and current['device']:
+                            volume = min(100, current['device']['volume_percent'] + 10)
+                            spotify.volume(volume, device_id=device_id)
+                            print(f"Volume up: {volume}%")
                 except Exception as e:
                     print(f"Error adjusting volume: {e}")
 
             elif x == 1:  # Volume Down
                 try:
-                    current = spotify.current_playback()
-                    if current and current['device']:
-                        volume = max(0, current['device']['volume_percent'] - 10)
-                        spotify.volume(volume)
-                        print(f"Volume down: {volume}%")
+                    device_id = get_active_or_default_device()
+                    if device_id:
+                        current = spotify.current_playback()
+                        if current and current['device']:
+                            volume = max(0, current['device']['volume_percent'] - 10)
+                            spotify.volume(volume, device_id=device_id)
+                            print(f"Volume down: {volume}%")
                 except Exception as e:
                     print(f"Error adjusting volume: {e}")
 
             elif x == 2:  # Previous Track
                 try:
-                    spotify.previous_track()
-                    # Wait briefly for track to change
-                    time.sleep(0.1)
-                    current = spotify.current_playback()
-                    if current and current['item']:
-                        print(f"Previous track: {format_track_info(current['item'], current['progress_ms'])}")
+                    device_id = get_active_or_default_device()
+                    if device_id:
+                        spotify.previous_track(device_id=device_id)
+                        time.sleep(0.1)
+                        current = spotify.current_playback()
+                        if current and current['item']:
+                            print(f"Previous track: {format_track_info(current['item'], current['progress_ms'])}")
                 except Exception as e:
                     print(f"Error: {e}")
 
             elif x == 3:  # Next Track
                 try:
-                    spotify.next_track()
-                    # Wait briefly for track to change
-                    time.sleep(0.1)
-                    current = spotify.current_playback()
-                    if current and current['item']:
-                        print(f"Next track: {format_track_info(current['item'], current['progress_ms'])}")
+                    device_id = get_active_or_default_device()
+                    if device_id:
+                        spotify.next_track(device_id=device_id)
+                        time.sleep(0.1)
+                        current = spotify.current_playback()
+                        if current and current['item']:
+                            print(f"Next track: {format_track_info(current['item'], current['progress_ms'])}")
                 except Exception as e:
                     print(f"Error: {e}")
-
-            elif x == 8:  # Spotify devices (existing functionality)
-                show_spotify_devices()
 
         else:  # Regular playlist buttons
             play_playlist_for_button(x, y)
@@ -791,6 +833,13 @@ def create_explosion_effect(midi_out, center_x, center_y, color=(255, 255, 255),
         time.sleep(0.01)
 
 def temperature_map(midi_out):
+    """
+    TEMPORARILY DISABLED
+    Temperature visualization animation
+    Needs further development/testing
+    """
+    return
+
     """Display temperature using colors (requires OpenWeatherMap API)"""
     # You'll need to add these to your .secret file
     try:
@@ -1052,6 +1101,78 @@ def equalizer_animation(midi_out):
             print(f"Equalizer error: {e}")
             time.sleep(1)
 
+def get_playlist_animation(playlist_id):
+    """Get animation for playlist if configured"""
+    try:
+        playlist = spotify.playlist(playlist_id)
+        playlist_name = playlist['name']
+
+        # Check if this playlist exists in our mappings
+        for coord, mapping in playlist_mappings.items():
+            if mapping['name'] == playlist_name and 'animation' in mapping:
+                return mapping['animation']
+    except Exception as e:
+        print(f"Error getting playlist animation: {e}")
+    return None
+
+def spotify_status_monitor():
+    """Monitor Spotify status changes"""
+    global should_run, last_animation
+    last_track_id = None
+    last_is_playing = None
+    last_playlist_id = None
+
+    while should_run:
+        global current_animation
+
+        try:
+            current = spotify.current_playback()
+
+            if current:
+                # Track change detection
+                track_id = current['item']['id'] if current['item'] else None
+                if track_id != last_track_id:
+                    last_track_id = track_id
+                    if current['item']:
+                        print(f"Now playing: {format_track_info(current['item'], current['progress_ms'])}")
+
+                # Play/Pause state change
+                is_playing = current['is_playing']
+                if is_playing != last_is_playing:
+                    last_is_playing = is_playing
+                    print(f"Playback {'resumed' if is_playing else 'paused'}")
+                if not is_playing:
+                    current_animation = None
+                else:
+                    current_animation = last_animation
+
+
+                # Playlist change detection
+                context = current.get('context')
+                if context and context['type'] == 'playlist':
+                    playlist_id = context['uri'].split(':')[-1]
+                    if playlist_id != last_playlist_id:
+                        last_playlist_id = playlist_id
+                        # Get playlist name
+                        try:
+                            playlist = spotify.playlist(playlist_id)
+                            print(f"Current playlist: {playlist['name']}")
+
+                            # Handle animation if specified
+                            playlist_animation = get_playlist_animation(playlist_id)
+                            if playlist_animation:
+                                if playlist_animation in animations:
+                                    last_animation = current_animation = playlist_animation
+                                    print(f"Changed animation to: {playlist_animation}")
+                        except:
+                            pass
+
+            time.sleep(1)  # Poll every second
+
+        except Exception as e:
+            print(f"Status monitor error: {e}")
+            time.sleep(5)  # Wait longer on error
+
 animations = {
     'rainbow': rainbow_wave,
     'matrix': matrix_rain,
@@ -1062,20 +1183,20 @@ animations = {
     'fireworks': fireworks,
     'rain': rain,
     'wave': wave_collision,
-    'temperature': temperature_map,
+    'equalizer': equalizer_animation,
+    # 'temperature': temperature_map,
 
-    # Genre-based animations
+    # Genre-based animations
     'electronic': electronic_animation,
     'classical': classical_animation,
     'rock': rock_animation,
     'jazz': jazz_animation,
     'ambient': ambient_animation,
-    'equalizer': equalizer_animation,
 }
 
 def animation_worker():
     midi_out, midi_in = initialize_launchpad()
-    global current_animation, should_run
+    global current_animation, should_run, last_animation
 
     # Initialize MIDI device with programmer mode
     midi_out.send_message([240, 0, 32, 41, 2, 24, 14, 1, 247])
@@ -1096,7 +1217,7 @@ def animation_worker():
 def set_animation(name):
     global current_animation
     if name in animations:
-        current_animation = name
+        last_animation = current_animation = name
         return jsonify({'status': 'success', 'animation': name})
     return jsonify({'status': 'error', 'message': 'Animation not found'}), 404
 
@@ -1239,6 +1360,22 @@ if __name__ == '__main__':
         animation_thread = threading.Thread(target=animation_worker, daemon=True)
         animation_thread.start()
 
+        # Start status monitor thread
+        status_thread = threading.Thread(target=spotify_status_monitor, daemon=True)
+        status_thread.start()
+        print("Spotify status monitor started")
+
+
+        parser = argparse.ArgumentParser(description='Launchpad MK2 Spotify Controller')
+        parser.add_argument('--homebridge', action='store_true', help='Start Homebridge server')
+        args = parser.parse_args()
+
+        # Start Homebridge server
+        if args.homebridge:
+            homebridge = HomebridgeServer(spotify, animations)
+            homebridge.start()
+            print("Homebridge server started on port 3000")
+
         print("\nCommands:")
         print("'s' - Show Spotify devices and select active device")
         print("'p' - Fetch and save playlists")
@@ -1268,7 +1405,7 @@ if __name__ == '__main__':
                         anim_num = int(choice) - 1
                         anim_list = list(animations.keys())
                         if 0 <= anim_num < len(anim_list):
-                            current_animation = anim_list[anim_num]
+                            last_animation = current_animation = anim_list[anim_num]
                             print(f"Started animation: {current_animation}")
                         else:
                             print("Invalid animation number!")

@@ -1,0 +1,143 @@
+{
+    "accessories": [
+        {
+            "accessory": "HTTP-SWITCH",
+            "name": "Spotify Controller",
+            "switchType": "stateful",
+            "onUrl": "http://192.168.50.70:3000/power",
+            "offUrl": "http://192.168.50.70:3000/power",
+            "statusUrl": "http://192.168.50.70:3000/status",
+            "pullInterval": 5000
+        },
+        {
+            "accessory": "HTTP-SWITCH",
+            "name": "Spotify Play/Pause",
+            "switchType": "stateful",
+            "onUrl": "http://192.168.50.70:3000/play",
+            "offUrl": "http://192.168.50.70:3000/play",
+            "statusUrl": "http://192.168.50.70:3000/status",
+            "pullInterval": 5000
+        },
+        {
+            "accessory": "HTTP-LIGHTBULB",
+            "name": "Spotify Volume",
+            "onUrl": "http://192.168.50.70:3000/volume",
+            "offUrl": "http://192.168.50.70:3000/volume",
+            "statusUrl": "http://192.168.50.70:3000/status",
+            "brightness": {
+                "url": "http://192.168.50.70:3000/volume",
+                "statusUrl": "http://192.168.50.70:3000/volume"
+            }
+        },
+        {
+            "accessory": "HTTP-SWITCH",
+            "name": "Rainbow Animation",
+            "switchType": "stateful",
+            "onUrl": {
+                "url": "http://192.168.50.70:3000/animation",
+                "method": "PUT",
+                "body": {
+                    "name": "rainbow"
+                }
+            },
+            "offUrl": {
+                "url": "http://192.168.50.70:3000/animation",
+                "method": "PUT",
+                "body": {
+                    "name": "none"
+                }
+            },
+            "statusUrl": "http://192.168.50.70:3000/animation",
+            "statusPattern": "rainbow",
+            "pullInterval": 5000
+        },
+        {
+            "accessory": "HTTP-SWITCH",
+            "name": "Matrix Animation",
+            "switchType": "stateful",
+            "onUrl": {
+                "url": "http://192.168.50.70:3000/animation",
+                "method": "PUT",
+                "body": {
+                    "name": "matrix"
+                }
+            },
+            "offUrl": {
+                "url": "http://192.168.50.70:3000/animation",
+                "method": "PUT",
+                "body": {
+                    "name": "none"
+                }
+            },
+            "statusUrl": "http://192.168.50.70:3000/animation",
+            "statusPattern": "matrix",
+            "pullInterval": 5000
+        },
+        {
+            "accessory": "HTTP-SWITCH",
+            "name": "Equalizer Animation",
+            "switchType": "stateful",
+            "onUrl": {
+                "url": "http://192.168.50.70:3000/animation",
+                "method": "PUT",
+                "body": {
+                    "name": "equalizer"
+                }
+            },
+            "offUrl": {
+                "url": "http://192.168.50.70:3000/animation",
+                "method": "PUT",
+                "body": {
+                    "name": "none"
+                }
+            },
+            "statusUrl": "http://192.168.50.70:3000/animation",
+            "statusPattern": "equalizer",
+            "pullInterval": 5000
+        },
+        {
+            "accessory": "HTTP-SWITCH",
+            "name": "Classical Animation",
+            "switchType": "stateful",
+            "onUrl": {
+                "url": "http://192.168.50.70:3000/animation",
+                "method": "PUT",
+                "body": {
+                    "name": "classical"
+                }
+            },
+            "offUrl": {
+                "url": "http://192.168.50.70:3000/animation",
+                "method": "PUT",
+                "body": {
+                    "name": "none"
+                }
+            },
+            "statusUrl": "http://192.168.50.70:3000/animation",
+            "statusPattern": "classical",
+            "pullInterval": 5000
+        },
+        {
+            "accessory": "HTTP-SWITCH",
+            "name": "Electronic Animation",
+            "switchType": "stateful",
+            "onUrl": {
+                "url": "http://192.168.50.70:3000/animation",
+                "method": "PUT",
+                "body": {
+                    "name": "electronic"
+                }
+            },
+            "offUrl": {
+                "url": "http://192.168.50.70:3000/animation",
+                "method": "PUT",
+                "body": {
+                    "name": "none"
+                }
+            },
+            "statusUrl": "http://192.168.50.70:3000/animation",
+            "statusPattern": "electronic",
+            "pullInterval": 5000
+        }
+    ]
+}

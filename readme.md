@@ -42,6 +42,29 @@ This fixes the "No active device found" error that occurred when:
 
 Note: Make sure Spotify is open on your default device for this to work properly.
 
+### Real-time Spotify Integration
+The controller maintains real-time synchronization with Spotify, detecting changes made from any source:
+
+- Changes made in Spotify desktop/mobile app
+- Third-party apps
+
+When a playlist change is detected from any sources, the controller automatically:
+1. Identifies the new playlist
+2. Checks if it matches a configured playlist in `playlists.json`
+3. Switches to the corresponding animation if configured
+4. Detects play/pause state and stops animation or switches to last animation
+
+This means you can control your music from anywhere, and the Launchpad will always stay in sync with the correct animation for your current playlist.
+
+## TODO
+
+### Coming Soon
+- [ ] HomeKit/Homebridge Integration
+  - Control Spotify playback from Home app
+  - Change animations via HomeKit scenes
+  - Control volume with HomeKit sliders
+  - View playback status in Home app
+
 ## Table of Contents
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
@@ -134,7 +157,8 @@ Playlists are configured in `playlists.json`. The format is:
     "mappings": {
         "x,y": {
             "name": "exact_playlist_name",
-            "description": "Optional description"
+            "description": "Optional description",
+            "animation": "rainbow"
         }
     }
 }
@@ -146,20 +170,19 @@ Example configuration:
     "mappings": {
         "0,7": {
             "name": "dream catcher",
-            "description": "Bottom-left - Chill vibes"
+            "description": "Bottom-left - Chill vibes",
+            "animation": "pulse"
         },
         "0,0": {
             "name": "Trip",
-            "description": "Top-left - Travel playlist"
+            "description": "Top-left - Travel playlist",
+            "animation": "classical"
         }
     }
 }
 ```
 
-Coordinate Reference:
-- x: 0-8 (left to right)
-- y: 0-8 (top to bottom)
-- Example: "0,7" is bottom-left corner
+  - [Grid Reference](#grid-reference)
 
 To configure:
 1. Use 'l' command to list available playlists
@@ -249,11 +272,25 @@ python mk2.py
 - `fireworks` - Exploding firework effects
 - `rain` - Falling rain effect
 - `wave` - Colliding wave patterns
+- `equalizer`: equalizer_animation,
+
+### Genre-based animations
+
+- `electronic`: electronic_animation,
+- `classical`: classical_animation,
+- `rock`: rock_animation,
+- `jazz`: jazz_animation,
+- `ambient`: ambient_animation,
+
+- ~~Temperature~~ (temporarily disabled)
+
+Note: Temperature animation is currently disabled pending further development.
 
 You can start animations either through:
 1. Command line: Use 'a' to list and select animations
 2. Web interface: Visit `http://localhost:5125/animation/<name>`
 3. Stop any running animation with the 'x' command
+
 ## Web Interface
 
 The script runs a web server on port 5125. Visit `http://localhost:5125` in your browser to see all available commands.
@@ -309,7 +346,6 @@ The Launchpad MK2 has a 9x9 grid layout. The coordinate system works as follows:
 - Upper row is y=8 (for special functions)
 - Main playlist buttons are typically on row y=7
 - The right column (x=8) contains control buttons (▷)
-- The top-right button (8,8) is reserved for Spotify device selection (S)
 
 Example coordinates:
 - Top row buttons: (0,8), (1,8), etc.
@@ -365,7 +401,7 @@ When configuring your playlists.json, use these coordinates:
   - Restart the Audio MIDI Setup application
   - Ensure no other applications are using the Launchpad
 
-If you successfully run this on other operating systems, please let us know so we can update the compatibility list.
+If you successfully run this on other operating systems, please let me know so I can update the compatibility list.
 
 ## Notes
 
