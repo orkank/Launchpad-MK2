@@ -14,8 +14,12 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import os
 import requests
-from homebridge import HomebridgeServer
+# from homebridge import HomebridgeServer
 import argparse
+import pyaudio
+import numpy as np
+from scipy.fft import fft
+from datetime import datetime, timezone
 
 app = Flask(__name__)
 
@@ -27,9 +31,25 @@ should_run = True
 spotify = None
 last_animation = None
 
+def initialize_audio():
+    """Initialize audio input"""
+    try:
+        p = pyaudio.PyAudio()
+        stream = p.open(
+            format=pyaudio.paFloat32,
+            channels=1,
+            rate=44100,
+            input=True,
+            frames_per_buffer=2048
+        )
+        return p, stream
+    except Exception as e:
+        print(f"Error initializing audio: {e}")
+        return None, None
+
 def load_playlist_mappings():
     try:
-        with open('playlists.json', 'r', encoding='utf-8') as f:
+        with open('config/playlists.json', 'r', encoding='utf-8') as f:
             data = json.load(f)
             # Convert string coordinates back to tuples
             mappings = {}
@@ -52,6 +72,137 @@ def load_playlist_mappings():
 
 # Load mappings when script starts
 playlist_mappings = load_playlist_mappings()
+
+def show_loading_message():
+    """Show an animated loading message in a separate thread"""
+    loading_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    i = 0
+    while show_loading_message.is_loading:
+        sys.stdout.write(f'\rGenerating playlist mappings... {loading_chars[i]} ')
+        sys.stdout.flush()
+        time.sleep(0.1)
+        i = (i + 1) % len(loading_chars)
+    sys.stdout.write('\r' + ' ' * 50 + '\r')  # Clear the loading message
+    sys.stdout.flush()
+
+def generate_playlist_mappings(filter_type='newest'):
+    """
+    Generate playlist mappings automatically from Spotify
+    filter_type: 'newest', 'popular', or 'all'
+    """
+    if spotify is None:
+        print("Spotify not initialized")
+        return
+
+    # Start loading animation
+    show_loading_message.is_loading = True
+    loading_thread = threading.Thread(target=show_loading_message)
+    loading_thread.daemon = True
+    loading_thread.start()
+
+    try:
+        # Load existing mappings
+        existing_mappings = {}
+        if os.path.exists('config/playlists.json'):
+            with open('config/playlists.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                existing_mappings = data.get('mappings', {})
+
+        print("\nLoading existing mappings...")
+
+        # Get all used coordinates
+        used_coords = set()
+        for coord_str in existing_mappings:
+            x, y = map(int, coord_str.split(','))
+            used_coords.add((x, y))
+
+        # Get available coordinates (excluding top row which is for controls)
+        available_coords = []
+        for y in range(8):  # 0-7 (excluding top row)
+            for x in range(8):  # 0-7 (excluding rightmost column)
+                if (x, y) not in used_coords:
+                    available_coords.append((x, y))
+
+        if not available_coords:
+            print("No available coordinates for new mappings!")
+            return
+
+        # Get list of animations for random selection (excluding equalizer_microphone)
+        available_animations = [anim for anim in animations.keys()
+                              if anim != 'equalizer_microphone']
+
+        # Get user's playlists
+        playlists = []
+        results = spotify.current_user_playlists(limit=50)
+
+        while results:
+            for item in results['items']:
+                # Skip playlists that are already mapped
+                playlist_name = item['name'].encode('utf-8').decode('utf-8')  # Ensure proper UTF-8 encoding
+                if not any(mapping['name'] == playlist_name for mapping in existing_mappings.values()):
+                    playlist_info = {
+                        'name': playlist_name,
+                        'id': item['id'],
+                        'tracks': item['tracks']['total'],
+                        'owner': item['owner']['id'],
+                        'added_at': datetime.now(timezone.utc).isoformat(),
+                    }
+
+                    # Get additional details for filtering
+                    if filter_type == 'popular':
+                        try:
+                            playlist_details = spotify.playlist(item['id'])
+                            playlist_info['followers'] = playlist_details['followers']['total']
+                        except:
+                            playlist_info['followers'] = 0
+
+                    playlists.append(playlist_info)
+
+            if results['next']:
+                results = spotify.next(results)
+            else:
+                break
+
+        # Sort playlists based on filter type
+        if filter_type == 'newest':
+            playlists.sort(key=lambda x: x['added_at'], reverse=True)
+        elif filter_type == 'popular':
+            playlists.sort(key=lambda x: x.get('followers', 0), reverse=True)
+
+        # Map new playlists to available coordinates
+        new_mappings = {}
+        for playlist in playlists:
+            if not available_coords:
+                break
+
+            coord = available_coords.pop(0)
+            coord_str = f"{coord[0]},{coord[1]}"
+            new_mappings[coord_str] = {
+                'name': playlist['name'],
+                'animation': random.choice(available_animations)
+            }
+
+        # Merge with existing mappings
+        merged_mappings = {**existing_mappings, **new_mappings}
+
+        # Save updated mappings with proper UTF-8 encoding
+        print("\nSaving new mappings...")
+        with open('config/playlists.json', 'w', encoding='utf-8') as f:
+            json.dump({'mappings': merged_mappings}, f, indent=2, ensure_ascii=False)
+
+        # Stop loading animation
+        show_loading_message.is_loading = False
+        loading_thread.join()
+
+        print(f"\nAdded {len(new_mappings)} new playlist mappings:")
+        for coord, mapping in new_mappings.items():
+            print(f"Coordinate {coord}: {mapping['name']} (Animation: {mapping['animation']})")
+
+    except Exception as e:
+        # Stop loading animation on error
+        show_loading_message.is_loading = False
+        loading_thread.join()
+        print(f"\nError generating playlist mappings: {e}")
 
 def initialize_launchpad():
     try:
@@ -251,18 +402,18 @@ def initialize_spotify():
     try:
         global spotify
         scope = [
-            'user-read-playback-state',
-            'user-modify-playback-state',
-            'user-read-currently-playing',
-            'playlist-read-private',
-            'playlist-read-collaborative',
-            'app-remote-control',
-            'streaming',
-            'user-read-playback-position',  # Add this scope
-            'user-read-recently-played'      # Add this scope
+          'user-read-playback-state',
+          'user-modify-playback-state',
+          'user-read-currently-playing',
+          'playlist-read-private',
+          'playlist-read-collaborative',
+          'app-remote-control',
+          'streaming',
+          'user-read-playback-position',
+          'user-read-recently-played'
         ]
 
-        with open('.secret', 'r') as f:
+        with open('config/.secret', 'r') as f:
             secrets = dict(line.strip().split('=') for line in f if '=' in line)
             client_id = secrets.get('client_id')
             client_secret = secrets.get('client_secret')
@@ -357,37 +508,47 @@ def format_track_info(track, progress_ms=None):
     return f"{artists} - {name} {time_info}"
 
 def get_active_or_default_device():
-    """Get active device or set default from .secret"""
+    """Get active device, default device, or first available device"""
     try:
         # Get available devices
         devices = spotify.devices()
 
-        # Find an active device
+        if not devices or 'devices' not in devices or not devices['devices']:
+            print("No Spotify devices found")
+            return None
+
+        # First try to find an active device
         device_id = None
         for device in devices['devices']:
             if device['is_active']:
                 device_id = device['id']
+                print(f"Using active device: {device['name']}")
                 break
 
-        # If no active device, use default from .secret
+        # If no active device, try to use default from .secret
         if not device_id:
             try:
-                with open('.secret', 'r') as f:
+                with open('config/.secret', 'r') as f:
                     secrets = dict(line.strip().split('=') for line in f if '=' in line)
                     default_device_id = secrets.get('default_device_id')
                     if default_device_id:
-                        print(f"No active device found, using default device")
+                        print(f"Using default device from .secret")
                         spotify.start_playback(device_id=default_device_id)
                         time.sleep(1)  # Wait for device activation
                         device_id = default_device_id
-                    else:
-                        print("No default device configured in .secret file")
-                        return None
             except Exception as e:
-                print(f"Error reading default device from .secret: {e}")
-                return None
+                print(f"Could not use default device: {e}")
+
+        # If still no device, use the first available one
+        if not device_id and devices['devices']:
+            first_device = devices['devices'][0]
+            device_id = first_device['id']
+            print(f"No active or default device found. Using first available device: {first_device['name']}")
+            spotify.start_playback(device_id=device_id)
+            time.sleep(2)  # Wait for device activation
 
         return device_id
+
     except Exception as e:
         print(f"Error getting device: {e}")
         return None
@@ -426,6 +587,11 @@ def on_midi_message(message, time_stamp):
 
         print(f"Button pressed - x: {x}, y: {y}, velocity: {velocity}")
         create_explosion_effect(midi_out, x, y)
+
+        # Mixer button (7,8) for random playlist
+        if x == 7 and y == 8:
+            play_random_playlist()
+            return
 
         # Control buttons (top row)
         if y == 8:
@@ -528,7 +694,7 @@ def play_playlist_for_button(x, y):
             # If no active device, use default from .secret
             if not device_id:
                 try:
-                    with open('.secret', 'r') as f:
+                    with open('config/.secret', 'r') as f:
                         secrets = dict(line.strip().split('=') for line in f if '=' in line)
                         default_device_id = secrets.get('default_device_id')
                         if default_device_id:
@@ -1023,6 +1189,132 @@ def get_current_audio_features():
         print(f"Error getting audio features: {e}")
         return None
 
+EQUALIZER_CONFIG = {
+    'sensitivity': 2.5,  # Increase this for more height (try 1.0 to 5.0)
+    'min_height': 1,    # Minimum bar height
+    'smoothing': 0.7,   # Smoothing factor (0-1)
+    'bass_boost': 1.8,  # Bass frequency boost
+    'decay': 0.1,       # How quickly the bars fall (0.1-1.0, higher = slower fall)
+    'peak_hold': 3,     # How many frames to hold the peak
+}
+
+def equalizer_animation_microphone(midi_out):
+    """Equalizer animation using microphone input"""
+    CHUNK = 2048
+    p, stream = initialize_audio()
+
+    if not stream:
+        return
+
+    # Keep previous levels for smoothing and decay
+    prev_levels = [0] * 8
+    peak_levels = [0] * 8
+    peak_hold_times = [0] * 8
+    current_colors = [[0, 0, 0] for _ in range(8 * 8)]  # Store current LED colors
+
+    try:
+        while current_animation == 'equalizer_microphone':
+            try:
+                # Read audio data
+                data = np.frombuffer(stream.read(CHUNK, exception_on_overflow=False), dtype=np.float32)
+
+                # Perform FFT
+                fft_data = fft(data)
+                freq_magnitudes = np.abs(fft_data[:CHUNK//2])
+
+                # Adjust frequency range and scaling
+                freq_range = freq_magnitudes[:CHUNK//4]  # Focus on lower frequencies
+
+                # Apply bass boost to lower frequencies
+                freq_range[:len(freq_range)//4] *= EQUALIZER_CONFIG['bass_boost']
+
+                # Apply logarithmic scaling and normalization with sensitivity
+                freq_range = np.log10(freq_range + 1)
+                max_val = np.max(freq_range) if np.max(freq_range) > 0 else 1
+                freq_range = freq_range * (8 * EQUALIZER_CONFIG['sensitivity'] / max_val)
+
+                # Map to 8 bands with smoothing and decay
+                bands = np.array_split(freq_range, 8)
+                current_levels = []
+
+                for i, band in enumerate(bands):
+                    # Get new level
+                    new_level = np.mean(band)
+
+                    # Apply smoothing with previous frame
+                    smooth = EQUALIZER_CONFIG['smoothing']
+                    level = (new_level * (1 - smooth) + prev_levels[i] * smooth)
+
+                    # Apply decay if new level is lower
+                    if level < prev_levels[i]:
+                        level = max(level, prev_levels[i] * EQUALIZER_CONFIG['decay'])
+
+                    # Update peak
+                    if level > peak_levels[i]:
+                        peak_levels[i] = level
+                        peak_hold_times[i] = EQUALIZER_CONFIG['peak_hold']
+                    else:
+                        if peak_hold_times[i] > 0:
+                            peak_hold_times[i] -= 1
+                        else:
+                            peak_levels[i] *= EQUALIZER_CONFIG['decay']
+
+                    # Ensure minimum height and cap at 8
+                    level = max(EQUALIZER_CONFIG['min_height'], min(8, int(level)))
+                    current_levels.append(level)
+                    prev_levels[i] = level
+
+                # Update LEDs with enhanced colors and slower decay
+                for x, level in enumerate(current_levels):
+                    for y in range(8):
+                        current_idx = x * 8 + y
+
+                        if y < level:  # LED should be lit
+                            # Calculate target color
+                            intensity = (y + 1) / 8.0
+                            if intensity < 0.33:
+                                target_r = int(intensity * 3 * 255)
+                                target_g = 255
+                                target_b = 0
+                            elif intensity < 0.66:
+                                target_r = 255
+                                target_g = int((1 - (intensity - 0.33) * 3) * 255)
+                                target_b = 0
+                            else:
+                                target_r = 255
+                                target_g = 0
+                                target_b = int((intensity - 0.66) * 3 * 128)
+
+                            # Immediately set to target color
+                            current_colors[current_idx] = [target_r, target_g, target_b]
+                        else:  # LED should fade
+                            # Slowly decrease current color values
+                            current_colors[current_idx] = [
+                                int(max(0, c - (2 if c > 50 else 1)))  # Slower decay for dimmer colors
+                                for c in current_colors[current_idx]
+                            ]
+
+                        # Set the color
+                        r, g, b = current_colors[current_idx]
+                        set_color(midi_out, x, y, r, g, b)
+
+                    # Draw peak dot with slower decay
+                    peak_y = min(7, int(peak_levels[x]))
+                    if peak_y >= level:
+                        set_color(midi_out, x, peak_y, 255, 255, 255)
+
+                time.sleep(0.016)  # ~60fps
+
+            except Exception as e:
+                print(f"Equalizer error: {e}")
+                time.sleep(0.1)
+
+    finally:
+        # Cleanup
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+
 def equalizer_animation(midi_out):
     """Equalizer visualization based on Spotify audio features"""
     last_track_id = None
@@ -1173,6 +1465,53 @@ def spotify_status_monitor():
             print(f"Status monitor error: {e}")
             time.sleep(5)  # Wait longer on error
 
+def play_random_playlist():
+    """Play a random playlist from the mapped playlists"""
+    if spotify is None:
+        print("Spotify not initialized")
+        return
+
+    try:
+        # Get all mapped playlists
+        playlists = []
+        for coord, mapping in playlist_mappings.items():
+            playlists.append(mapping['name'])
+
+        if not playlists:
+            print("No playlists mapped!")
+            return
+
+        # Select random playlist
+        random_playlist = random.choice(playlists)
+        print(f"\nRandomly selected: {random_playlist}")
+
+        # Get device and play
+        device_id = get_active_or_default_device()
+        if device_id:
+            playlist_id = get_playlist_id_by_name(random_playlist)
+            if playlist_id:
+                spotify.start_playback(
+                    device_id=device_id,
+                    context_uri=f'spotify:playlist:{playlist_id}'
+                )
+                # Wait briefly for playback to start
+                time.sleep(0.1)
+                current = spotify.current_playback()
+                if current and current['item']:
+                    print(f"Playing: {format_track_info(current['item'], current['progress_ms'])}")
+                print(f"Playing playlist: {random_playlist}")
+
+                # Update animation if specified
+                global current_animation, last_animation
+                for mapping in playlist_mappings.values():
+                    if mapping['name'] == random_playlist and mapping.get('animation'):
+                        last_animation = current_animation = mapping['animation']
+                        print(f"Changed animation to: {mapping['animation']}")
+                        break
+
+    except Exception as e:
+        print(f"Error playing random playlist: {e}")
+
 animations = {
     'rainbow': rainbow_wave,
     'matrix': matrix_rain,
@@ -1184,6 +1523,7 @@ animations = {
     'rain': rain,
     'wave': wave_collision,
     'equalizer': equalizer_animation,
+    'equalizer_microphone': equalizer_animation_microphone,
     # 'temperature': temperature_map,
 
     # Genre-based animations
@@ -1212,7 +1552,6 @@ def animation_worker():
         clear_all(midi_out)
         midi_out.close_port()
         midi_in.close_port()
-
 @app.route('/animation/<name>')
 def set_animation(name):
     global current_animation
@@ -1365,16 +1704,15 @@ if __name__ == '__main__':
         status_thread.start()
         print("Spotify status monitor started")
 
-
         parser = argparse.ArgumentParser(description='Launchpad MK2 Spotify Controller')
         parser.add_argument('--homebridge', action='store_true', help='Start Homebridge server')
         args = parser.parse_args()
 
         # Start Homebridge server
         if args.homebridge:
-            homebridge = HomebridgeServer(spotify, animations)
-            homebridge.start()
-            print("Homebridge server started on port 3000")
+          homebridge = HomebridgeServer(spotify, animations)
+          homebridge.start()
+          print("Homebridge server started on port 3000")
 
         print("\nCommands:")
         print("'s' - Show Spotify devices and select active device")
@@ -1382,6 +1720,7 @@ if __name__ == '__main__':
         print("'l' - List available playlists")
         print("'a' - List and start animations")
         print("'x' - Stop current animation")
+        print("'g' - Generate playlist mappings automatically")
         print("'q' - Quit")
 
         # Start Flask server in a separate thread
@@ -1414,6 +1753,22 @@ if __name__ == '__main__':
             elif cmd == 'x':
                 current_animation = None
                 print("Animation stopped")
+            elif cmd == 'g':
+                print("\nSelect filter type:")
+                print("1. Newest playlists")
+                print("2. Most popular playlists")
+                print("3. All playlists")
+                try:
+                    choice = input("\nEnter choice (1-3): ").strip()
+                    filter_type = {
+                        '1': 'newest',
+                        '2': 'popular',
+                        '3': 'all'
+                    }.get(choice, 'newest')
+                    generate_playlist_mappings(filter_type)
+                except ValueError:
+                    print("Invalid input! Using 'newest' filter.")
+                    generate_playlist_mappings('newest')
             elif cmd == 'q':
                 break
 

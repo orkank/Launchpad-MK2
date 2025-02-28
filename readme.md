@@ -19,7 +19,17 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 
 ## Updates
 
-### Default Device Support
+### New Features (Latest) - 27/02/2025
+- Automatic playlist mapping with 'g' command
+  - Sort by newest playlists
+  - Sort by most popular playlists
+  - Sort by all playlists
+  - Random animation assignment for new mappings (this action does not remove your existing records in playlists.json)
+- Random playlist selection using mixer button (7,8)
+- UTF-8 support for playlist names with emojis
+- Config files moved to config folder
+
+### Default Device Support - 04/12/2024
 Added support for automatically using a default Spotify device when no active device is found.
 
 To configure:
@@ -100,11 +110,48 @@ This means you can control your music from anywhere, and the Launchpad will alwa
 
 ### Installation
 
-1. Install required Python packages:
-
+### Option 1: Direct Installation
+1. Install required packages:
 ```bash
-pip install rtmidi flask spotipy watchdog requests
+pip install python-rtmidi flask spotipy watchdog
 ```
+
+2. Run the script:
+```bash
+python3 mk2.py
+```
+
+### Option 2: Using Virtual Environment (Recommended)
+Using a virtual environment helps avoid package conflicts between projects.
+
+1. Create and activate virtual environment:
+```bash
+# Create venv
+python3 -m venv venv
+
+# Activate venv
+source venv/bin/activate  # On macOS/Linux
+.\venv\Scripts\activate   # On Windows
+```
+
+2. Install required packages:
+```bash
+pip install python-rtmidi flask spotipy watchdog
+```
+
+3. Run the script:
+```bash
+python3 mk2.py
+```
+
+4. When finished:
+```bash
+deactivate  # Exit virtual environment
+```
+
+### System Dependencies
+- macOS: `brew install portaudio`
+- Linux: `sudo apt-get install python3-pyaudio`
 
 ## Spotify Developer Setup
 
@@ -261,6 +308,7 @@ python mk2.py
 | `a` | List and start animations |
 | `x` | Stop current animation |
 | `q` | Quit the application |
+| `g` | Generate playlist mappings automatically
 
 ### Available Animations
 - `rainbow` - Rainbow wave pattern
@@ -375,6 +423,7 @@ When configuring your playlists.json, use these coordinates:
 - `a` - List and start animations
 - `x` - Stop current animation
 - `q` - Quit the application
+- Mixer (7,8) - Play random playlist
 
 ## System Requirements & Compatibility
 
