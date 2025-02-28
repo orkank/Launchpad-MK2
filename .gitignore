@@ -1,5 +1,15 @@
 # Created by venv; see https://docs.python.org/3/library/venv.html
 venv/*
+bin/*
+history/*
+include/*
+lib/*
+lib64/*
+libexec/*
+mk2/*
+local/*
+sbin/*
+share/*
 .env
 .DS_Store
 *.log
@@ -10,3 +20,5 @@ venv/*
 .secret
 playlist.json
 __pycache__
+config/playlists.json
+config/.secret

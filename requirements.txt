@@ -1,0 +1,25 @@
+# MIDI
+python-rtmidi>=1.4.9
+mido>=1.2.10
+
+# Audio processing
+pyaudio>=0.2.13
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Spotify
+spotipy>=2.19.0
+
+# Web server
+flask>=2.0.1
+
+# File monitoring
+watchdog>=2.1.6
+
+# Optional: Development tools
+pytest>=7.0.0  # For testing
+black>=22.3.0  # For code formatting
+flake8>=4.0.1  # For linting
+
+# HTTP requests
+requests>=2.26.0
