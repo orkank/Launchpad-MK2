@@ -19,7 +19,20 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 
 ## Updates
 
-### New Features (Latest) - 27/02/2025
+### New Features (Latest) - 03/03/2024
+- Added new mood-based animations:
+  - `synthwave` - Retro synthwave style with sunset colors
+  - `lofi` - Calm, smooth transitions for lo-fi music
+  - `meditation` - Peaceful breathing effect for meditation
+  - `party` - Energetic, colorful animation for party music
+  - `focus` - Subtle, non-distracting for study/focus
+- New 'r' command to randomize animations:
+  - Randomly assigns animations to all playlists
+  - Preserves existing mappings and coordinates
+  - Shows before/after changes for each playlist
+  - Updates playlists.json automatically
+
+### New Features (Latest) - 27/02/2024
 - Automatic playlist mapping with 'g' command
   - Sort by newest playlists
   - Sort by most popular playlists
@@ -108,12 +121,21 @@ This means you can control your music from anywhere, and the Launchpad will alwa
 3. Spotify Premium account
 4. Spotify Developer account
 
-### Installation
+## Installation
 
 ### Option 1: Direct Installation
 1. Install required packages:
 ```bash
-pip install python-rtmidi flask spotipy watchdog
+# macOS
+brew install portaudio  # Required for audio processing
+pip install -r requirements.txt
+
+# Linux
+sudo apt-get install python3-dev portaudio19-dev
+pip install -r requirements.txt
+
+# Windows
+pip install -r requirements.txt  # No additional dependencies needed
 ```
 
 2. Run the script:
@@ -122,21 +144,40 @@ python3 mk2.py
 ```
 
 ### Option 2: Using Virtual Environment (Recommended)
-Using a virtual environment helps avoid package conflicts between projects.
+Virtual environments (venv) provide an isolated Python environment for your project. This is recommended because:
+- Prevents conflicts between package versions
+- Keeps your system Python clean
+- Makes it easy to manage dependencies
+- Ensures reproducible environments across different machines
 
 1. Create and activate virtual environment:
 ```bash
+# Navigate to project directory
+cd path/to/Launchpad-MK2
+
 # Create venv
 python3 -m venv venv
 
 # Activate venv
 source venv/bin/activate  # On macOS/Linux
 .\venv\Scripts\activate   # On Windows
+
+# Your prompt should now show (venv) at the beginning
+# Example: (venv) user@computer:~/Launchpad-MK2$
 ```
 
 2. Install required packages:
 ```bash
-pip install python-rtmidi flask spotipy watchdog
+# macOS
+brew install portaudio  # Required for audio processing
+pip install -r requirements.txt
+
+# Linux
+sudo apt-get install python3-dev portaudio19-dev
+pip install -r requirements.txt
+
+# Windows
+pip install -r requirements.txt  # No additional dependencies needed
 ```
 
 3. Run the script:
@@ -149,9 +190,67 @@ python3 mk2.py
 deactivate  # Exit virtual environment
 ```
 
-### System Dependencies
-- macOS: `brew install portaudio`
-- Linux: `sudo apt-get install python3-pyaudio`
+### Using the Virtual Environment
+
+Every time you want to run the script:
+```bash
+# Navigate to project directory
+cd path/to/Launchpad-MK2
+
+# Activate the virtual environment
+source venv/bin/activate  # On macOS/Linux
+.\venv\Scripts\activate   # On Windows
+
+# Run the script
+python3 mk2.py
+
+# When done, deactivate the environment
+deactivate
+```
+
+### Managing the Virtual Environment
+
+Useful commands:
+```bash
+# Update pip in virtual environment
+pip install --upgrade pip
+
+# Show installed packages
+pip list
+
+# Export requirements (if you add new packages)
+pip freeze > requirements.txt
+
+# Remove virtual environment (if needed)
+deactivate  # Make sure to deactivate first
+rm -rf venv  # On macOS/Linux
+rmdir /s /q venv  # On Windows
+```
+
+Note: The virtual environment directory (venv) is already in .gitignore, so it won't be committed to version control.
+
+### System Requirements
+- Python 3.7+
+- Novation Launchpad MK2
+- Spotify Premium account
+
+### Troubleshooting Installation
+If you encounter issues installing the requirements:
+
+1. PyAudio Installation Fails:
+   - Make sure you have the system dependencies installed first
+   - Try installing portaudio before PyAudio
+
+2. python-rtmidi Installation Fails:
+   - macOS: Make sure Xcode command line tools are installed
+   - Linux: Install libasound2-dev and libjack-dev
+   ```bash
+   sudo apt-get install libasound2-dev libjack-dev
+   ```
+
+3. Other Issues:
+   - Make sure you have the latest pip: `pip install --upgrade pip`
+   - Try installing requirements one by one to identify problematic packages
 
 ## Spotify Developer Setup
 
@@ -329,6 +428,13 @@ python mk2.py
 - `rock`: rock_animation,
 - `jazz`: jazz_animation,
 - `ambient`: ambient_animation,
+
+### Mood-based animations
+- `synthwave` - Retro synthwave style with sunset colors
+- `lofi` - Calm, smooth transitions for lo-fi music
+- `meditation` - Peaceful breathing effect for meditation
+- `party` - Energetic, colorful animation for party music
+- `focus` - Subtle, non-distracting for study/focus
 
 - ~~Temperature~~ (temporarily disabled)
 
