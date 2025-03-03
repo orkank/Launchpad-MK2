@@ -32,7 +32,7 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
   - Shows before/after changes for each playlist
   - Updates playlists.json automatically
 
-### New Features (Latest) - 27/02/2024
+### New Features - 27/02/2024
 - Automatic playlist mapping with 'g' command
   - Sort by newest playlists
   - Sort by most popular playlists
@@ -430,11 +430,11 @@ python mk2.py
 - `ambient`: ambient_animation,
 
 ### Mood-based animations
-- `synthwave` - Retro synthwave style with sunset colors
-- `lofi` - Calm, smooth transitions for lo-fi music
-- `meditation` - Peaceful breathing effect for meditation
-- `party` - Energetic, colorful animation for party music
-- `focus` - Subtle, non-distracting for study/focus
+- `synthwave`
+- `lofi`
+- `meditation`
+- `party`
+- `focus`
 
 - ~~Temperature~~ (temporarily disabled)
 
@@ -594,7 +594,7 @@ You can set up the script to run automatically on macOS startup:
    launchctl start com.launchpad.spotify
    ```
 
-### Service Management Commands
+<!-- ### Service Management Commands
 ```bash
 # Start the service
 launchctl start com.launchpad.spotify
@@ -611,7 +611,7 @@ launchctl list | grep launchpad
 # View logs
 tail -f ~/Library/Logs/launchpad_spotify.log
 tail -f ~/Library/Logs/launchpad_spotify_error.log
-```
+``` -->
 
 ### Important Notes
 - Make sure all setup steps (Spotify authentication, etc.) are completed before running as a service
