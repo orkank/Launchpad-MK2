@@ -30,6 +30,7 @@ command_queue = Queue()
 should_run = True
 spotify = None
 last_animation = None
+animation_select_mode = False
 
 def initialize_audio():
     """Initialize audio input"""
@@ -553,8 +554,29 @@ def get_active_or_default_device():
         print(f"Error getting device: {e}")
         return None
 
+def show_animation_selection_guide():
+    """Display animation selection guide in terminal"""
+    print("\n=== ANIMATION SELECTION MODE ===")
+    print("Tap a button to select an animation:")
+
+    # Get sorted list of animations
+    anim_list = sorted(list(animations.keys()))
+
+    # Display animations grid mapping
+    for i, anim_name in enumerate(anim_list):
+        if i < 64:  # We have 64 buttons available (8x8 grid)
+            # Calculate grid position (0,7 to 7,0)
+            x = i % 8
+            y = 7 - (i // 8)
+            print(f"Button ({x},{y}): {anim_name}")
+
+    print("\nTap session button (4,8) again to exit animation selection mode")
+    print("================================")
+
 def on_midi_message(message, time_stamp):
     """Callback function for MIDI messages"""
+    global current_animation, last_animation, animation_select_mode
+
     # Track button states
     if not hasattr(on_midi_message, 'button_states'):
         on_midi_message.button_states = {}
@@ -587,6 +609,28 @@ def on_midi_message(message, time_stamp):
 
         print(f"Button pressed - x: {x}, y: {y}, velocity: {velocity}")
         create_explosion_effect(midi_out, x, y)
+
+        # Session button (4,8) - Toggle animation selection mode
+        if x == 4 and y == 8:
+            animation_select_mode = not animation_select_mode
+            if animation_select_mode:
+                show_animation_selection_guide()
+            else:
+                print("Exited animation selection mode")
+            return
+
+        # Handle animation selection mode
+        if animation_select_mode:
+            if 0 <= x < 8 and 0 <= y <= 7:
+                # Calculate animation index
+                index = (7 - y) * 8 + x
+                anim_list = sorted(list(animations.keys()))
+
+                if index < len(anim_list):
+                    selected_animation = anim_list[index]
+                    last_animation = current_animation = selected_animation
+                    print(f"Selected animation: {selected_animation}")
+            return
 
         # Mixer button (7,8) for random playlist
         if x == 7 and y == 8:
@@ -642,6 +686,31 @@ def on_midi_message(message, time_stamp):
                             print(f"Next track: {format_track_info(current['item'], current['progress_ms'])}")
                 except Exception as e:
                     print(f"Error: {e}")
+
+            elif x == 5:  # Play/Pause
+                try:
+                    device_id = get_active_or_default_device()
+                    if not device_id:
+                        print("No active device found")
+                        return
+
+                    current = spotify.current_playback()
+                    if current and current['is_playing']:
+                        spotify.pause_playback(device_id=device_id)
+                        print("Playback paused")
+                    else:
+                        spotify.start_playback(device_id=device_id)
+                        print("Playback started")
+
+                    # Ensure animations start/stop with playback
+                    # global current_animation, last_animation
+                    if current and not current['is_playing']:
+                        last_animation = current_animation
+                        current_animation = None
+                    else:
+                        current_animation = last_animation
+                except Exception as e:
+                    print(f"Error toggling playback: {e}")
 
         else:  # Regular playlist buttons
             play_playlist_for_button(x, y)
@@ -1650,6 +1719,176 @@ def focus_animation(midi_out):
         phase += 0.1
         time.sleep(0.1)
 
+def starfield_animation(midi_out):
+    """Starfield effect with twinkling stars"""
+    colors = [(255, 255, 255), (200, 200, 255), (150, 150, 255),
+              (100, 100, 200), (50, 50, 150)]
+    clear_all(midi_out)
+
+    for _ in range(40):
+        # Create 3-5 new stars
+        for _ in range(random.randint(3, 5)):
+            x, y = random.randint(0, 7), random.randint(0, 7)
+            color = random.choice(colors)
+            set_color(midi_out, x, y, *color)
+
+        time.sleep(0.15)
+
+        # Dim some random stars
+        for _ in range(random.randint(2, 4)):
+            x, y = random.randint(0, 7), random.randint(0, 7)
+            set_color(midi_out, x, y, 0, 0, 0)
+
+def geometric_animation(midi_out):
+    """Geometric shapes forming and transforming - faster version"""
+    clear_all(midi_out)
+
+    # Draw square - faster transitions
+    for size in range(1, 5):
+        for i in range(size):
+            # Top and bottom edges
+            set_color(midi_out, 4-size//2+i, 4-size//2, 255, 0, 255)
+            set_color(midi_out, 4-size//2+i, 4+size//2-1, 255, 0, 255)
+            # Left and right edges
+            set_color(midi_out, 4-size//2, 4-size//2+i, 255, 0, 255)
+            set_color(midi_out, 4+size//2-1, 4-size//2+i, 255, 0, 255)
+        time.sleep(0.15)  # Faster transition (was 0.3)
+        clear_all(midi_out)
+
+    # Draw diamond - faster transitions
+    for size in range(1, 5):
+        set_color(midi_out, 4, 4-size, 0, 255, 255)
+        set_color(midi_out, 4+size, 4, 0, 255, 255)
+        set_color(midi_out, 4, 4+size, 0, 255, 255)
+        set_color(midi_out, 4-size, 4, 0, 255, 255)
+        time.sleep(0.15)  # Faster transition (was 0.3)
+        clear_all(midi_out)
+
+    # Add rapid triangle rotation
+    for angle in range(0, 360, 45):
+        rad = math.radians(angle)
+        for r in range(1, 4):
+            for i in range(3):
+                ang = rad + i * 2 * math.pi / 3
+                x = int(4 + r * math.cos(ang))
+                y = int(4 + r * math.sin(ang))
+                if 0 <= x < 8 and 0 <= y < 8:
+                    set_color(midi_out, x, y, 255, 255, 0)
+        time.sleep(0.1)
+        clear_all(midi_out)
+
+def sunset_animation(midi_out):
+    """Gradient animation mimicking a sunset - faster version"""
+    clear_all(midi_out)
+
+    # Sunset colors from top to bottom
+    colors = [
+        (255, 100, 0),  # Orange
+        (255, 50, 0),   # Dark orange
+        (200, 0, 50),   # Reddish
+        (150, 0, 100),  # Purple
+        (100, 0, 150),  # Dark purple
+        (50, 0, 150),   # Deep blue
+        (0, 0, 100),    # Dark blue
+        (0, 0, 50)      # Night blue
+    ]
+
+    # Full sunset - shorter display time
+    for y in range(8):
+        for x in range(8):
+            set_color(midi_out, x, y, *colors[7-y])
+    time.sleep(0.5)  # Shorter time (was 2.0)
+
+    # Fade to night - fewer steps, faster transition
+    for step in range(5):  # Fewer steps (was 10)
+        for y in range(8):
+            for x in range(8):
+                r, g, b = colors[7-y]
+                factor = 1.0 - (step / 5.0)
+                set_color(midi_out, x, y, int(r*factor), int(g*factor), int(b*factor))
+        time.sleep(0.1)  # Faster transition (was 0.2)
+
+    # Add rapid sunrise effect
+    for step in range(5):
+        for y in range(8):
+            for x in range(8):
+                r, g, b = colors[7-y]
+                factor = step / 5.0
+                set_color(midi_out, x, y, int(r*factor), int(g*factor), int(b*factor))
+        time.sleep(0.1)
+
+def heartbeat_animation(midi_out):
+    """Pulsing animation that mimics a heartbeat rhythm"""
+    heart_shape = [
+        (2, 1), (3, 1), (5, 1), (6, 1),
+        (1, 2), (4, 2), (7, 2),
+        (1, 3), (7, 3),
+        (2, 4), (6, 4),
+        (3, 5), (5, 5),
+        (4, 6)
+    ]
+
+    for _ in range(3):  # 3 heartbeats
+        # First pulse (stronger)
+        for intensity in range(0, 255, 25):
+            for x, y in heart_shape:
+                set_color(midi_out, x, y, intensity, 0, 0)
+            time.sleep(0.03)
+
+        time.sleep(0.1)  # Short pause
+
+        # Second pulse (weaker)
+        for intensity in range(0, 180, 20):
+            for x, y in heart_shape:
+                set_color(midi_out, x, y, intensity, 0, 0)
+            time.sleep(0.03)
+
+        # Fade out slowly
+        for intensity in range(180, 0, -10):
+            for x, y in heart_shape:
+                set_color(midi_out, x, y, intensity, 0, 0)
+            time.sleep(0.05)
+
+        time.sleep(0.6)  # Pause between beats
+
+def bloom_animation(midi_out):
+    """Flower-like pattern that blooms from the center - faster version"""
+    clear_all(midi_out)
+
+    # Define flower growth pattern (coordinates from center)
+    petals = [
+        [],  # Center
+        [(0, 0)],  # Stage 1
+        [(0, 1), (1, 0), (0, -1), (-1, 0)],  # Stage 2
+        [(1, 1), (1, -1), (-1, -1), (-1, 1)],  # Stage 3
+        [(0, 2), (2, 0), (0, -2), (-2, 0)]  # Stage 4
+    ]
+
+    # Colors for each stage (green stem to pink flower)
+    colors = [
+        (0, 0, 0),
+        (50, 200, 50),  # Green center
+        (255, 150, 200),  # Pink petals
+        (255, 100, 150),  # Darker pink
+        (255, 50, 100)   # Deep pink
+    ]
+
+    # Bloom - faster transition
+    for stage in range(1, len(petals)):
+        for dx, dy in petals[stage]:
+            set_color(midi_out, 4+dx, 4+dy, *colors[stage])
+        time.sleep(0.2)  # Faster bloom (was 0.4)
+
+    # Add rapid pulse effect
+    for _ in range(3):
+        # Pulsate
+        for intensity in [0.7, 1.0, 0.7, 0.5]:
+            for stage in range(1, len(petals)):
+                for dx, dy in petals[stage]:
+                    r, g, b = colors[stage]
+                    set_color(midi_out, 4+dx, 4+dy, int(r*intensity), int(g*intensity), int(b*intensity))
+            time.sleep(0.15)  # Faster transition (was 0.3)
+
 animations = {
     'rainbow': rainbow_wave,
     'matrix': matrix_rain,
@@ -1677,6 +1916,11 @@ animations = {
     'meditation': meditation_animation,
     'party': party_animation,
     'focus': focus_animation,
+    'starfield': starfield_animation,
+    'geometric': geometric_animation,
+    'sunset': sunset_animation,
+    'heartbeat': heartbeat_animation,
+    'bloom': bloom_animation
 }
 
 def animation_worker():

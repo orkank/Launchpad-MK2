@@ -19,7 +19,18 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 
 ## Updates
 
-### New Features (Latest) - 03/03/2024
+### New Features (Latest) - 04/03/2025
+- Added animation selection mode:
+  - Press session button (4,8) to enter selection mode
+  - Grid buttons (0,7 to 7,0) map to available animations
+  - Press any grid button to instantly switch animations
+  - Press session button again to exit selection mode
+  - Visual guide in terminal shows which button activates each animation
+- Added play/pause and stop buttons:
+  - Play/Pause button (5,8) - Toggle playback.
+- 5 More animations added
+
+### New Features - 03/03/2025
 - Added new mood-based animations:
   - `synthwave` - Retro synthwave style with sunset colors
   - `lofi` - Calm, smooth transitions for lo-fi music
@@ -32,7 +43,7 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
   - Shows before/after changes for each playlist
   - Updates playlists.json automatically
 
-### New Features - 27/02/2024
+### New Features - 27/02/2025
 - Automatic playlist mapping with 'g' command
   - Sort by newest playlists
   - Sort by most popular playlists
@@ -435,10 +446,11 @@ python mk2.py
 - `meditation`
 - `party`
 - `focus`
-
-- ~~Temperature~~ (temporarily disabled)
-
-Note: Temperature animation is currently disabled pending further development.
+- `starfield` - Twinkling stars in space
+- `geometric` - Forming and transforming geometric shapes
+- `sunset` - Sunset gradient with fade to night
+- `heartbeat` - Pulsing heart animation
+- `bloom` - Flower blooming from center
 
 You can start animations either through:
 1. Command line: Use 'a' to list and select animations
@@ -483,7 +495,7 @@ The Launchpad MK2 has a 9x9 grid layout. The coordinate system works as follows:
 
 ```
    0   1   2   3   4   5   6   7   8  (x)
-8  +   -   <   >   □   □   □   □   S   Controls
+8  +   -   <   >   □   ▶   ■   □   S   Controls
 7  □   □   □   □   □   □   □   □   ▷   Playlists
 6  □   □   □   □   □   □   □   □   ▷
 5  □   □   □   □   □   □   □   □   ▷
@@ -525,11 +537,13 @@ When configuring your playlists.json, use these coordinates:
 ```
 
 ### Control Buttons
-- `l` - List all available playlists
-- `a` - List and start animations
-- `x` - Stop current animation
-- `q` - Quit the application
-- Mixer (7,8) - Play random playlist
+- Volume Up (0,8)
+- Volume Down (1,8)
+- Previous Track (2,8)
+- Next Track (3,8)
+- Animation Selection Mode (4,8)
+- Play/Pause (5,8)
+- Random Playlist (7,8)
 
 ## System Requirements & Compatibility
 
