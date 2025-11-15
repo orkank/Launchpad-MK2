@@ -143,15 +143,6 @@ When a playlist change is detected from any sources, the controller automaticall
 
 This means you can control your music from anywhere, and the Launchpad will always stay in sync with the correct animation for your current playlist.
 
-## TODO
-
-### Coming Soon
-- [ ] HomeKit/Homebridge Integration
-  - Control Spotify playback from Home app
-  - Change animations via HomeKit scenes
-  - Control volume with HomeKit sliders
-  - View playback status in Home app
-
 ## Table of Contents
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
