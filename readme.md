@@ -16,8 +16,61 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 - LED animations controllable via HTTP requests
 - Device selection for Spotify playback
 - Customizable playlist mappings with animations
+- **🎉 NEW: Rich colorized terminal interface** with beautiful help and status displays
+- **🎉 NEW: Web control panel** with real-time status and controls
+- **🎉 NEW: Enhanced playlist mapping preview** with visual grid layout
 
 ## Updates
+
+## 🚀 Major Update: Refactored Architecture (September 2025)
+
+### 📂 **New Modular Code Structure**
+The monolithic 2,216-line `mk2.py` file has been completely refactored into a clean, maintainable architecture:
+
+```
+src/
+├── animations/
+├── core/
+├── effects/
+├── hardware/
+├── services/
+├── api/
+├── utils/
+└── main.py
+```
+
+### 🎨 **Enhanced Terminal Experience**
+- **Rich colorized interface** using the Rich library
+- **Smart help system**: Simple commands on startup, detailed help with `h` command
+- **Beautiful status displays** with tables, colors, and emojis
+- **Playlist mapping preview** with `v` command showing grid layout and utilization
+
+### 🌐 **New Web Control Panel**
+Access via `http://localhost:5125/` for:
+- **🎵 Now Playing** - Current track display with play/pause controls
+- **✨ Animation Control** - Dropdown selection with one-click start/stop
+- **📊 Real-time Status** - Live stats for playlists, animations, Spotify connection
+- **📋 Mapping Browser** - Visual preview of all playlist-animation mappings
+- **📱 Mobile-friendly** - Responsive design with glassmorphism UI
+
+### 🎯 **Enhanced Commands**
+- `h` - Beautiful colorized help with organized sections
+- `v` - Preview playlist-animation mappings with visual table
+- All existing commands enhanced with better formatting and feedback
+
+### 🔧 **Technical Improvements**
+- **Better error handling** - cleaner, more informative error messages
+- **Improved logging** - Flask request logging disabled for cleaner console
+- **Enhanced performance** - modular loading and efficient resource management
+- **Future-ready** - easy to extend with new features and integrations
+
+### 📋 **New API Endpoints**
+- `GET /` - Modern web control panel
+- `GET /status` - Real-time system status (JSON)
+- `GET /mappings` - Playlist mappings with coordinates (JSON)
+- `POST /play|/pause|/next|/previous` - Direct Spotify controls
+
+**Migration:** The refactored version maintains 100% compatibility with existing configurations and playlists. Simply run `python main.py` instead of `python mk2.py`.
 
 ### New Features (Latest) - 04/03/2025
 - Added animation selection mode:
@@ -189,10 +242,16 @@ pip install -r requirements.txt
 
 # Windows
 pip install -r requirements.txt  # No additional dependencies needed
+
+# Note: requirements.txt now includes Rich library for enhanced terminal interface
 ```
 
 3. Run the script:
 ```bash
+# New refactored version (recommended)
+python main.py
+
+# Or use the original file (legacy)
 python3 mk2.py
 ```
 
@@ -412,13 +471,31 @@ python mk2.py
 
 | Command | Description |
 |---------|-------------|
-| `s` | Show and select available Spotify devices |
-| `p` | Fetch and save your Spotify playlists to `.playlists` file |
-| `l` | List all available playlists |
-| `a` | List and start animations |
-| `x` | Stop current animation |
-| `q` | Quit the application |
-| `g` | Generate playlist mappings automatically
+| **`h`** | 🎨 **Show detailed colorized help** with hardware controls and tips |
+| **`v`** | 📋 **Preview playlist-animation mappings** with visual grid layout |
+| `s` | 📱 Show and select available Spotify devices |
+| `p` | 📥 Fetch and save your Spotify playlists to `.playlists` file |
+| `l` | 📋 List all available playlists |
+| `a` | 🎨 List and start animations manually |
+| `x` | ⏹️ Stop current animation |
+| `g` | 🤖 Generate playlist mappings automatically |
+| `r` | 🎲 Randomize animations for all playlists |
+| `q` | 🚪 Quit the application |
+
+### 🎯 **New Enhanced Commands:**
+- **`h`** - Beautiful Rich-formatted help with organized sections:
+  - Hardware button reference for Launchpad controls
+  - Web interface endpoints and features
+  - Pro tips and troubleshooting
+- **`v`** - Visual playlist mapping preview:
+  - Grid layout showing coordinates and assignments
+  - Animation status indicators
+  - Grid utilization statistics
+
+### 💡 **Command Tips:**
+- On startup, you'll see a **Quick Status** display with essential information
+- Use `h` for comprehensive help when you need detailed guidance
+- Use `v` to quickly verify your playlist mappings and find empty slots
 
 ### Available Animations
 - `rainbow` - Rainbow wave pattern
@@ -457,36 +534,78 @@ You can start animations either through:
 2. Web interface: Visit `http://localhost:5125/animation/<name>`
 3. Stop any running animation with the 'x' command
 
-## Web Interface
+## 🌐 Web Interface
 
-The script runs a web server on port 5125. Visit `http://localhost:5125` in your browser to see all available commands.
+### 🎮 **Modern Control Panel**
+Visit **`http://localhost:5125`** for a beautiful, modern web control panel featuring:
 
-### Available Endpoints
+- **🎵 Now Playing Section**
+  - Current track display with artist and title
+  - Play/pause/next/previous controls
+  - Real-time playback status
 
-#### Animations
-- `GET /` - Show all available commands and documentation
+- **✨ Animation Control**
+  - Dropdown selection of all available animations
+  - One-click start/stop buttons
+  - Current animation status display
+
+- **📊 Live Status Dashboard**
+  - Mapped playlists count
+  - Current animation name
+  - Spotify connection status
+  - Auto-refreshing every 5 seconds
+
+- **📋 Playlist Mappings Browser**
+  - Visual grid showing all button assignments
+  - Playlist names, coordinates, and animations
+  - Refresh button for latest mappings
+
+### 📋 **API Endpoints**
+
+#### 🎨 Animation Control
+- `GET /` - Modern web control panel (HTML interface)
 - `GET /animation/<name>` - Start an animation
 - `GET /stop` - Stop current animation
-- `GET /list` - List available animations
+- `GET /list` - List available animations (JSON)
 
-#### Spotify Control
-- `GET /devices` - List available Spotify devices
+#### 🎧 Spotify Control
+- `GET /devices` - List available Spotify devices (JSON)
 - `GET /device/<id>` - Select Spotify device by ID
+- `POST /play` - Start playback
+- `POST /pause` - Pause playback
+- `POST /next` - Next track
+- `POST /previous` - Previous track
 
-### Example Usage
+#### 📊 Status & Data
+- `GET /status` - Real-time system status (JSON)
+- `GET /mappings` - Playlist mappings with coordinates (JSON)
+
+### 💻 **Command Line Examples**
 ```bash
-# List available animations
-curl http://localhost:5125/list
+# Get current system status
+curl http://localhost:5125/status
+
+# Get playlist mappings
+curl http://localhost:5125/mappings
 
 # Start rainbow animation
 curl http://localhost:5125/animation/rainbow
 
-# Stop current animation
-curl http://localhost:5125/stop
+# Control Spotify playback
+curl -X POST http://localhost:5125/play
+curl -X POST http://localhost:5125/pause
 
 # List Spotify devices
 curl http://localhost:5125/devices
 ```
+
+### 📱 **Mobile Friendly**
+The web interface is fully responsive and works great on:
+- 📱 **Mobile phones** - Touch-friendly controls
+- 💻 **Desktop browsers** - Full feature access
+- 📟 **Tablets** - Optimized layout
+
+**Pro Tip:** Bookmark `http://localhost:5125` for quick access to your Launchpad controls from any device on your network!
 
 ## Launchpad Layout
 

@@ -23,3 +23,6 @@ flake8>=4.0.1  # For linting
 
 # HTTP requests
 requests>=2.26.0
+
+# Rich formatting (for new features)
+rich>=13.7.1

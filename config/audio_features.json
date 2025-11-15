@@ -1,0 +1,24 @@
+{
+  "enabled": true,
+  "auto_start": false,
+  "update_interval": 2.0,
+  "features": {
+    "real_time_analysis": true,
+    "auto_animation_selection": true,
+    "adaptive_animations": true,
+    "spectrum_visualization": true
+  },
+  "performance": {
+    "cache_duration": 30,
+    "api_timeout": 5.0,
+    "max_retries": 3
+  },
+  "ui": {
+    "show_status_messages": true,
+    "verbose_logging": false,
+    "show_feature_changes": true
+  }
+}
+
+
+
