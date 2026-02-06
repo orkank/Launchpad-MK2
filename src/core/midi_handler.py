@@ -15,6 +15,13 @@ class MidiHandler:
         self.spotify_manager = spotify_manager
         self.playlist_manager = playlist_manager
         self.button_states = {}
+        # Mapping mode state
+        self.mapping_mode = False
+        self.pending_mapping = None  # {'playlist': name, 'animation': name}
+        # Web notification messages
+        self.last_mapping_message = None  # {'type': 'success'|'error'|'warning', 'message': str}
+        # Pending confirmation for overwrite
+        self.pending_confirmation = None  # {'x': int, 'y': int, 'playlist': name, 'animation': name}
 
     def on_midi_message(self, message, time_stamp):
         """Handle incoming MIDI messages.
@@ -66,6 +73,11 @@ class MidiHandler:
             x: X coordinate of pressed button
             y: Y coordinate of pressed button
         """
+        # Handle mapping mode first (highest priority)
+        if self.mapping_mode:
+            self._handle_mapping_mode_button(x, y)
+            return
+
         # Session button (4,8) - Toggle animation selection mode
         if x == 4 and y == 8:
             mode = self.animation_controller.toggle_animation_select_mode()
@@ -284,3 +296,198 @@ class MidiHandler:
 
         except Exception as e:
             print(f"Error playing random playlist: {e}")
+
+    def is_system_reserved(self, x, y):
+        """Check if a button is system reserved and cannot be mapped.
+
+        Args:
+            x: X coordinate
+            y: Y coordinate
+
+        Returns:
+            bool: True if button is system reserved
+        """
+        # Top row (y=8) is reserved for controls
+        if y == 8:
+            return True
+        # Right column (x=8) is reserved
+        if x == 8:
+            return True
+        return False
+
+    def start_mapping_mode(self, playlist_name, animation_name=None):
+        """Start mapping mode to capture button press.
+
+        Args:
+            playlist_name: Name of playlist to map
+            animation_name: Optional animation name
+
+        Returns:
+            bool: True if mapping mode started successfully
+        """
+        if self.mapping_mode:
+            return False  # Already in mapping mode
+
+        self.mapping_mode = True
+        self.pending_mapping = {
+            'playlist': playlist_name,
+            'animation': animation_name
+        }
+        self.last_mapping_message = None  # Clear previous messages
+        self.pending_confirmation = None  # Clear any pending confirmations
+        
+        print(f"\n=== MAPPING MODE ===")
+        print(f"Playlist: {playlist_name}")
+        if animation_name:
+            print(f"Animation: {animation_name}")
+        print("Press a button on your Launchpad to map this playlist.")
+        print("System reserved buttons (top row and right column) are not allowed.")
+        print("================================")
+        return True
+
+    def cancel_mapping_mode(self):
+        """Cancel mapping mode."""
+        if self.mapping_mode:
+            self.mapping_mode = False
+            self.pending_mapping = None
+            self.pending_confirmation = None
+            self.last_mapping_message = {'type': 'warning', 'message': 'Mapping mode cancelled.'}
+            print("Mapping mode cancelled.")
+            return True
+        return False
+
+    def get_mapping_status(self):
+        """Get current mapping mode status.
+
+        Returns:
+            dict: Mapping status information
+        """
+        status = {
+            'active': self.mapping_mode,
+            'pending': self.pending_mapping,
+            'last_message': self.last_mapping_message,
+            'pending_confirmation': self.pending_confirmation
+        }
+        # Clear message after reading (one-time notification)
+        if self.last_mapping_message:
+            self.last_mapping_message = None
+        return status
+
+    def _handle_mapping_mode_button(self, x, y):
+        """Handle button press during mapping mode.
+
+        Args:
+            x: X coordinate of pressed button
+            y: Y coordinate of pressed button
+        """
+        if not self.pending_mapping:
+            self.mapping_mode = False
+            return
+
+        # Check if button is system reserved
+        if self.is_system_reserved(x, y):
+            message = f"⚠️ Button ({x},{y}) is system reserved and cannot be mapped! Please press a different button."
+            print(f"⚠️  Button ({x},{y}) is system reserved and cannot be mapped!")
+            print("Please press a different button.")
+            self.last_mapping_message = {'type': 'error', 'message': message}
+            return
+
+        # Check if button already has a mapping
+        existing_mapping = self.playlist_manager.get_mapping(x, y)
+        if existing_mapping:
+            # Store pending confirmation for web interface
+            playlist_name = self.pending_mapping['playlist']
+            animation_name = self.pending_mapping.get('animation')
+            
+            self.pending_confirmation = {
+                'x': x,
+                'y': y,
+                'playlist': playlist_name,
+                'animation': animation_name,
+                'existing': existing_mapping
+            }
+            
+            existing_info = f"Playlist: {existing_mapping['name']}"
+            if existing_mapping.get('animation'):
+                existing_info += f", Animation: {existing_mapping['animation']}"
+            
+            message = f"⚠️ Button ({x},{y}) is already mapped to {existing_info}. Waiting for confirmation..."
+            print(f"⚠️  Button ({x},{y}) is already mapped to:")
+            print(f"   Playlist: {existing_mapping['name']}")
+            if existing_mapping.get('animation'):
+                print(f"   Animation: {existing_mapping['animation']}")
+            print("Waiting for confirmation from web interface...")
+            self.last_mapping_message = {'type': 'warning', 'message': message}
+            return  # Wait for web confirmation
+
+        # No existing mapping, save directly
+        self._save_mapping(x, y)
+
+    def _save_mapping(self, x, y):
+        """Save mapping for coordinates.
+        
+        Args:
+            x: X coordinate
+            y: Y coordinate
+        """
+        if self.pending_confirmation:
+            # Use pending confirmation data
+            playlist_name = self.pending_confirmation['playlist']
+            animation_name = self.pending_confirmation.get('animation')
+            x = self.pending_confirmation['x']
+            y = self.pending_confirmation['y']
+            self.pending_confirmation = None
+        elif self.pending_mapping:
+            # Use pending mapping data
+            playlist_name = self.pending_mapping['playlist']
+            animation_name = self.pending_mapping.get('animation')
+        else:
+            return
+
+        self.playlist_manager.set_mapping(x, y, playlist_name, animation_name)
+        self.playlist_manager.save_mappings()
+
+        success_msg = f"✅ Mapping saved! Button ({x},{y}) → Playlist: {playlist_name}"
+        if animation_name:
+            success_msg += f", Animation: {animation_name}"
+        
+        print(f"\n✅ Mapping saved!")
+        print(f"   Button ({x},{y}) → Playlist: {playlist_name}")
+        if animation_name:
+            print(f"   Animation: {animation_name}")
+        
+        self.last_mapping_message = {'type': 'success', 'message': success_msg}
+
+        # Exit mapping mode
+        self.mapping_mode = False
+        self.pending_mapping = None
+
+    def confirm_overwrite(self):
+        """Confirm overwrite of existing mapping.
+        
+        Returns:
+            bool: True if confirmation was processed, False if no pending confirmation
+        """
+        if not self.pending_confirmation:
+            return False
+        
+        x = self.pending_confirmation['x']
+        y = self.pending_confirmation['y']
+        self._save_mapping(x, y)
+        return True
+
+    def cancel_overwrite(self):
+        """Cancel overwrite of existing mapping.
+        
+        Returns:
+            bool: True if cancellation was processed, False if no pending confirmation
+        """
+        if not self.pending_confirmation:
+            return False
+        
+        self.pending_confirmation = None
+        self.mapping_mode = False
+        self.pending_mapping = None
+        self.last_mapping_message = {'type': 'warning', 'message': 'Mapping cancelled. No changes made.'}
+        print("Mapping cancelled by user.")
+        return True

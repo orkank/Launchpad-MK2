@@ -41,7 +41,12 @@ from .artistic import (
     geometric_animation,
     sunset_animation,
     heartbeat_animation,
-    bloom_animation
+    bloom_animation,
+    aurora_animation,
+    galaxy_animation,
+    neon_grid_animation,
+    lava_lamp_animation,
+    prism_animation
 )
 
 from .spectrum import (
@@ -92,6 +97,11 @@ ANIMATIONS = {
     'sunset': sunset_animation,
     'heartbeat': heartbeat_animation,
     'bloom': bloom_animation,
+    'aurora': aurora_animation,
+    'galaxy': galaxy_animation,
+    'neon_grid': neon_grid_animation,
+    'lava_lamp': lava_lamp_animation,
+    'prism': prism_animation,
 
     # Spotify-powered spectrum animations
     'spotify_spectrum': spotify_spectrum_analyzer,
@@ -134,6 +144,11 @@ __all__ = [
     'sunset_animation',
     'heartbeat_animation',
     'bloom_animation',
+    'aurora_animation',
+    'galaxy_animation',
+    'neon_grid_animation',
+    'lava_lamp_animation',
+    'prism_animation',
     'spotify_spectrum_analyzer',
     'energy_bars',
     'tempo_pulse',

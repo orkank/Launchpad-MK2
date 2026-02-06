@@ -109,7 +109,13 @@ class LaunchpadController:
             host: Host to bind to
             port: Port to listen on
         """
-        self.flask_app = create_app(self.animation_controller, self.spotify_manager, self.playlist_manager, self.audio_analyzer)
+        self.flask_app = create_app(
+            self.animation_controller,
+            self.spotify_manager,
+            self.playlist_manager,
+            self.audio_analyzer,
+            self.midi_handler
+        )
         self.flask_thread = threading.Thread(
             target=lambda: self.flask_app.run(
                 host=host,

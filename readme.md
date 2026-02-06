@@ -22,6 +22,57 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 
 ## Updates
 
+### 🎯 New Feature: Web-Based Playlist Mapping Editor (February 2026)
+
+Create and manage playlist mappings directly from the web interface without editing JSON files!
+
+**Features:**
+- **Interactive Mapping Editor**
+  - Select any playlist from your Spotify account
+  - Optional animation selection during mapping
+  - Press a button on your Launchpad to create the mapping
+  - Real-time status feedback
+
+- **Smart Button Validation**
+  - System reserved buttons (top row y=8, right column x=8) are protected
+  - Warning when overwriting existing mappings
+  - Confirmation dialog before overwriting existing mappings
+  - Automatic save on button press
+
+- **Quick Animation Updates**
+  - Animation dropdown for each mapping in the list
+  - Change animations instantly without page reload
+  - Visual feedback on successful updates
+  - Delete mappings with one click
+
+- **Default Device Management**
+  - Select and save your default Spotify device from web interface
+  - No need to manually edit `.secret` file
+  - Device list shows active devices
+  - Clear default device option
+
+- **5 New Animations Added** 🎉
+  - `aurora` - Aurora borealis effect with flowing green-blue waves
+  - `galaxy` - Spiral galaxy effect with rotating arms
+  - `neon_grid` - Neon grid pattern with pulsing lines
+  - `lava_lamp` - Lava lamp effect with rising colorful blobs
+  - `prism` - Prism effect with rainbow light refraction
+
+**Usage:**
+1. Open web interface at `http://localhost:5125/`
+2. Scroll to "Playlist Mapping Editor" section
+3. Select a playlist and optional animation
+4. Click "Map Button" and press a button on your Launchpad
+5. Mapping is saved automatically!
+6. Set default device in "Default Spotify Device" section
+
+**Benefits:**
+- No more manual JSON editing
+- Faster mapping creation
+- Visual feedback and error handling
+- Easy animation management
+- Web-based device configuration
+
 ## 🚀 Major Update: Refactored Architecture (September 2025)
 
 ### 📂 **New Modular Code Structure**
@@ -50,7 +101,8 @@ Access via `http://localhost:5125/` for:
 - **🎵 Now Playing** - Current track display with play/pause controls
 - **✨ Animation Control** - Dropdown selection with one-click start/stop
 - **📊 Real-time Status** - Live stats for playlists, animations, Spotify connection
-- **📋 Mapping Browser** - Visual preview of all playlist-animation mappings
+- **🎯 Playlist Mapping Editor** - Interactive playlist-to-button mapping without JSON editing
+- **📋 Mapping Browser** - Visual preview of all playlist-animation mappings with quick animation updates
 - **📱 Mobile-friendly** - Responsive design with glassmorphism UI
 
 ### 🎯 **Enhanced Commands**
@@ -69,6 +121,12 @@ Access via `http://localhost:5125/` for:
 - `GET /status` - Real-time system status (JSON)
 - `GET /mappings` - Playlist mappings with coordinates (JSON)
 - `POST /play|/pause|/next|/previous` - Direct Spotify controls
+- `GET /api/playlists` - Fetch user's Spotify playlists
+- `POST /api/mapping/start` - Start mapping mode
+- `POST /api/mapping/cancel` - Cancel mapping mode
+- `GET /api/mapping/status` - Get mapping mode status
+- `POST /api/mapping/delete` - Delete a mapping
+- `POST /api/mapping/update-animation` - Update mapping animation
 
 **Migration:** The refactored version maintains 100% compatibility with existing configurations and playlists. Simply run `python main.py` instead of `python mk2.py`.
 
@@ -514,11 +572,18 @@ python mk2.py
 - `meditation`
 - `party`
 - `focus`
+
+### Artistic animations
 - `starfield` - Twinkling stars in space
 - `geometric` - Forming and transforming geometric shapes
 - `sunset` - Sunset gradient with fade to night
 - `heartbeat` - Pulsing heart animation
 - `bloom` - Flower blooming from center
+- `aurora` - Aurora borealis effect with flowing green-blue waves
+- `galaxy` - Spiral galaxy effect with rotating arms
+- `neon_grid` - Neon grid pattern with pulsing lines
+- `lava_lamp` - Lava lamp effect with rising colorful blobs
+- `prism` - Prism effect with rainbow light refraction
 
 You can start animations either through:
 1. Command line: Use 'a' to list and select animations

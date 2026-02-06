@@ -217,3 +217,226 @@ def bloom_animation(midi_out, should_run, current_animation):
                     r, g, b = colors[stage]
                     set_color(midi_out, 4+dx, 4+dy, int(r*intensity), int(g*intensity), int(b*intensity))
             time.sleep(0.15)  # Faster transition (was 0.3)
+
+
+def aurora_animation(midi_out, should_run, current_animation):
+    """Aurora borealis effect with flowing green-blue waves."""
+    import colorsys
+    from ..hardware.launchpad import clear_all, set_color
+    
+    phase = 0
+    
+    while should_run() and current_animation() == 'aurora':
+        clear_all(midi_out)
+        
+        for y in range(9):
+            for x in range(9):
+                # Create wave pattern
+                wave1 = math.sin((x + phase) * 0.3) * 0.5 + 0.5
+                wave2 = math.sin((y + phase * 0.7) * 0.4) * 0.5 + 0.5
+                wave3 = math.sin((x + y + phase * 0.5) * 0.2) * 0.5 + 0.5
+                
+                # Combine waves for aurora effect
+                intensity = (wave1 + wave2 + wave3) / 3
+                
+                # Aurora colors: green to cyan to blue
+                hue = 0.4 + (intensity * 0.2)  # Green to cyan range
+                saturation = 0.8 + (intensity * 0.2)
+                value = 0.3 + (intensity * 0.7)
+                
+                r, g, b = colorsys.hsv_to_rgb(hue, saturation, value)
+                set_color(midi_out, x, y, int(r * 255), int(g * 255), int(b * 255))
+        
+        phase += 0.5
+        time.sleep(0.08)
+
+
+def galaxy_animation(midi_out, should_run, current_animation):
+    """Spiral galaxy effect with rotating arms."""
+    import colorsys
+    from ..hardware.launchpad import clear_all, set_color
+    
+    center_x, center_y = 4, 4
+    rotation = 0
+    
+    while should_run() and current_animation() == 'galaxy':
+        clear_all(midi_out)
+        
+        for y in range(9):
+            for x in range(9):
+                # Calculate angle and distance from center
+                dx = x - center_x
+                dy = y - center_y
+                distance = math.sqrt(dx*dx + dy*dy)
+                
+                if distance > 0:
+                    angle = math.atan2(dy, dx) + rotation
+                    # Create spiral pattern
+                    spiral_angle = angle + distance * 0.8
+                    
+                    # Create galaxy arm pattern
+                    arm_intensity = (math.sin(spiral_angle * 2) + 1) / 2
+                    distance_factor = 1.0 / (1.0 + distance * 0.3)
+                    intensity = arm_intensity * distance_factor
+                    
+                    # Galaxy colors: purple to blue to white
+                    hue = 0.7 - (distance * 0.1)  # Purple to blue
+                    saturation = 0.6 + (intensity * 0.4)
+                    value = 0.2 + (intensity * 0.8)
+                    
+                    r, g, b = colorsys.hsv_to_rgb(hue, saturation, value)
+                    set_color(midi_out, x, y, int(r * 255), int(g * 255), int(b * 255))
+        
+        rotation += 0.1
+        time.sleep(0.1)
+
+
+def neon_grid_animation(midi_out, should_run, current_animation):
+    """Neon grid pattern with pulsing lines."""
+    from ..hardware.launchpad import clear_all, set_color
+    
+    phase = 0
+    
+    while should_run() and current_animation() == 'neon_grid':
+        clear_all(midi_out)
+        
+        # Calculate pulse intensity
+        pulse = (math.sin(phase) + 1) / 2
+        
+        # Draw horizontal and vertical grid lines
+        for i in range(9):
+            # Horizontal lines
+            intensity_h = (math.sin(phase + i * 0.5) + 1) / 2
+            for x in range(9):
+                r = int(0 * intensity_h * pulse)
+                g = int(255 * intensity_h * pulse)
+                b = int(255 * intensity_h * pulse)
+                set_color(midi_out, x, i, r, g, b)
+            
+            # Vertical lines
+            intensity_v = (math.sin(phase + i * 0.7) + 1) / 2
+            for y in range(9):
+                r = int(255 * intensity_v * pulse)
+                g = int(0 * intensity_v * pulse)
+                b = int(255 * intensity_v * pulse)
+                set_color(midi_out, i, y, r, g, b)
+        
+        # Add intersection highlights
+        for x in range(9):
+            for y in range(9):
+                if x % 2 == 0 and y % 2 == 0:
+                    highlight = (math.sin(phase + x + y) + 1) / 2
+                    r = int(255 * highlight)
+                    g = int(255 * highlight)
+                    b = int(255 * highlight)
+                    set_color(midi_out, x, y, r, g, b)
+        
+        phase += 0.15
+        time.sleep(0.08)
+
+
+def lava_lamp_animation(midi_out, should_run, current_animation):
+    """Lava lamp effect with rising blobs."""
+    import colorsys
+    from ..hardware.launchpad import clear_all, set_color
+    
+    blobs = []
+    for _ in range(3):
+        blobs.append({
+            'x': random.uniform(1, 7),
+            'y': random.uniform(1, 7),
+            'size': random.uniform(1.5, 2.5),
+            'speed': random.uniform(0.02, 0.05),
+            'hue': random.uniform(0.0, 1.0)
+        })
+    
+    frame = 0
+    
+    while should_run() and current_animation() == 'lava_lamp':
+        clear_all(midi_out)
+        
+        # Base color (dark background)
+        base_hue = 0.1
+        for y in range(9):
+            for x in range(9):
+                r, g, b = colorsys.hsv_to_rgb(base_hue, 0.8, 0.2)
+                set_color(midi_out, x, y, int(r * 255), int(g * 255), int(b * 255))
+        
+        # Update and draw blobs
+        for blob in blobs:
+            # Move blob up (lava rising)
+            blob['y'] -= blob['speed']
+            
+            # Reset if blob reaches top
+            if blob['y'] < -1:
+                blob['y'] = 8
+                blob['x'] = random.uniform(1, 7)
+                blob['hue'] = random.uniform(0.0, 1.0)
+            
+            # Slight horizontal drift
+            blob['x'] += math.sin(frame * 0.1) * 0.02
+            
+            # Draw blob
+            for y in range(9):
+                for x in range(9):
+                    dx = x - blob['x']
+                    dy = y - blob['y']
+                    distance = math.sqrt(dx*dx + dy*dy)
+                    
+                    if distance < blob['size']:
+                        # Soft edge
+                        intensity = 1.0 - (distance / blob['size'])
+                        intensity = max(0, min(1, intensity))
+                        
+                        # Lava lamp colors (warm hues)
+                        hue = blob['hue']
+                        saturation = 0.9
+                        value = 0.3 + (intensity * 0.7)
+                        
+                        r, g, b = colorsys.hsv_to_rgb(hue, saturation, value)
+                        set_color(midi_out, x, y, int(r * 255), int(g * 255), int(b * 255))
+        
+        frame += 1
+        time.sleep(0.1)
+
+
+def prism_animation(midi_out, should_run, current_animation):
+    """Prism effect with rainbow refraction."""
+    import colorsys
+    from ..hardware.launchpad import clear_all, set_color
+    
+    phase = 0
+    
+    while should_run() and current_animation() == 'prism':
+        clear_all(midi_out)
+        
+        # Create light beam from left
+        beam_x = int((math.sin(phase * 0.3) + 1) * 4)
+        
+        for y in range(9):
+            # Create rainbow refraction effect
+            for x in range(9):
+                # Distance from beam
+                distance = abs(x - beam_x)
+                
+                # Refraction angle based on distance
+                refraction = distance * 0.2
+                
+                # Create rainbow spectrum
+                hue = (phase + refraction + y * 0.1) % 1.0
+                saturation = 1.0
+                value = max(0.3, 1.0 - (distance * 0.15))
+                
+                r, g, b = colorsys.hsv_to_rgb(hue, saturation, value)
+                set_color(midi_out, x, y, int(r * 255), int(g * 255), int(b * 255))
+        
+        # Add prism highlight
+        for y in range(9):
+            highlight = (math.sin(phase + y * 0.5) + 1) / 2
+            r = int(255 * highlight)
+            g = int(255 * highlight)
+            b = int(255 * highlight)
+            set_color(midi_out, beam_x, y, r, g, b)
+        
+        phase += 0.2
+        time.sleep(0.08)

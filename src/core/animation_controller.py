@@ -39,13 +39,24 @@ class AnimationController:
             bool: True if animation was set successfully
         """
         if animation_name in ANIMATIONS:
+            # Clear screen when switching animations
+            if self.current_animation != animation_name and self.launchpad.midi_out:
+                from ..hardware.launchpad import clear_all
+                clear_all(self.launchpad.midi_out)
+            
             self.last_animation = self.current_animation = animation_name
             return True
         return False
 
     def stop_animation(self):
         """Stop the current animation."""
+        # Clear screen when stopping
+        if self.launchpad.midi_out:
+            from ..hardware.launchpad import clear_all
+            clear_all(self.launchpad.midi_out)
+        
         self.current_animation = None
+        self.last_animation = None
 
     def get_available_animations(self):
         """Get list of available animations.
@@ -83,9 +94,16 @@ class AnimationController:
 
     def _animation_worker(self):
         """Worker thread for running animations."""
+        last_animation = None
         try:
             while self.should_run:
                 if self.current_animation in ANIMATIONS:
+                    # Clear screen when animation changes
+                    if last_animation != self.current_animation and self.launchpad.midi_out:
+                        from ..hardware.launchpad import clear_all
+                        clear_all(self.launchpad.midi_out)
+                        last_animation = self.current_animation
+                    
                     # Create wrapper functions for animation parameters
                     should_run_func = lambda: self.should_run
                     current_animation_func = lambda: self.current_animation
@@ -118,9 +136,11 @@ class AnimationController:
                             current_animation_func
                         )
                 else:
-                    if self.launchpad.midi_out:
+                    # Animation stopped or None - clear screen and wait
+                    if last_animation is not None and self.launchpad.midi_out:
                         from ..hardware.launchpad import clear_all
                         clear_all(self.launchpad.midi_out)
+                        last_animation = None
                 time.sleep(0.1)
         finally:
             if self.launchpad.midi_out:

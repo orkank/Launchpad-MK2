@@ -201,8 +201,9 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 0;
+            padding: 10px 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            gap: 10px;
         }
 
         .mapping-item:last-child {
@@ -214,6 +215,7 @@
             padding: 4px 8px;
             border-radius: 20px;
             font-size: 0.8em;
+            flex-shrink: 0;
         }
 
         .mapping-playlist {
@@ -222,6 +224,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            min-width: 0;
         }
 
         .mapping-animation {
@@ -229,6 +232,28 @@
             padding: 4px 8px;
             border-radius: 15px;
             font-size: 0.8em;
+        }
+
+        .mapping-animation-select {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            padding: 4px 8px;
+            color: white;
+            font-size: 0.85em;
+            min-width: 120px;
+            cursor: pointer;
+        }
+
+        .mapping-animation-select:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .mapping-animation-select option {
+            background: #333;
+            color: white;
         }
 
         @media (max-width: 768px) {
@@ -301,7 +326,7 @@
             font-weight: bold;
         }
 
-        .success-message, .error-message {
+        .success-message, .error-message, .warning-message {
             padding: 10px;
             border-radius: 5px;
             margin: 10px 0;
@@ -316,6 +341,40 @@
         .error-message {
             background: rgba(231, 76, 60, 0.3);
             border: 1px solid rgba(231, 76, 60, 0.5);
+        }
+
+        .warning-message {
+            background: rgba(241, 196, 15, 0.3);
+            border: 1px solid rgba(241, 196, 15, 0.5);
+        }
+
+        .mapping-active {
+            background: rgba(46, 204, 113, 0.2) !important;
+            border: 2px solid rgba(46, 204, 113, 0.5) !important;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .mapping-item-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 0.8em;
+        }
+
+        .btn-danger {
+            background: rgba(231, 76, 60, 0.3);
+        }
+
+        .btn-danger:hover {
+            background: rgba(231, 76, 60, 0.5);
         }
     </style>
 </head>
@@ -398,6 +457,46 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Playlist Mapping Editor -->
+            <div class="card">
+                <h2>🎯 Playlist Mapping Editor</h2>
+                <p style="margin-bottom: 15px; opacity: 0.8;">Select a playlist and press a button on your Launchpad to create a mapping.</p>
+                <div class="form-group">
+                    <label for="playlistSelect">Select Playlist:</label>
+                    <select id="playlistSelect">
+                        <option value="">Loading playlists...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="mappingAnimationSelect">Select Animation (Optional):</label>
+                    <select id="mappingAnimationSelect">
+                        <option value="">None</option>
+                    </select>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="startMapping()" id="startMappingBtn">🎯 Map Button</button>
+                    <button class="btn" onclick="cancelMapping()" id="cancelMappingBtn" style="display: none;">❌ Cancel</button>
+                </div>
+                <div id="mappingStatus" style="margin-top: 15px;"></div>
+            </div>
+
+            <!-- Default Device Selection -->
+            <div class="card">
+                <h2>🎧 Default Spotify Device</h2>
+                <p style="margin-bottom: 15px; opacity: 0.8;">Set your default Spotify device. This device will be used when no active device is found.</p>
+                <div class="form-group">
+                    <label for="defaultDeviceSelect">Select Default Device:</label>
+                    <select id="defaultDeviceSelect">
+                        <option value="">Loading devices...</option>
+                    </select>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="saveDefaultDevice()">💾 Save Default Device</button>
+                    <button class="btn" onclick="clearDefaultDevice()">🗑️ Clear</button>
+                </div>
+                <div id="deviceStatus" style="margin-top: 15px;"></div>
+            </div>
         </div>
 
         <!-- Status Cards -->
@@ -429,36 +528,175 @@
         let currentTrack = null;
         let isPlaying = false;
         let currentAnimationName = null;
+        let availableAnimations = []; // Store animations globally for mapping dropdowns
 
         // Initialize the page
         document.addEventListener('DOMContentLoaded', function() {
             loadAnimations();
+            loadPlaylists();
+            loadDevices();
+            loadDefaultDevice();
             refreshStatus();
             refreshMappings();
             refreshAudioFeaturesStatus();
+            checkMappingStatus();
 
             // Update status every 5 seconds
             setInterval(refreshStatus, 5000);
             setInterval(refreshAudioFeaturesStatus, 3000); // Audio features every 3 seconds
+            setInterval(checkMappingStatus, 1000); // Check mapping status every second
         });
 
         async function loadAnimations() {
             try {
                 const response = await fetch('/list');
                 const animations = await response.json();
+                availableAnimations = animations; // Store globally
 
                 const select = document.getElementById('animationSelect');
+                const mappingSelect = document.getElementById('mappingAnimationSelect');
+                
                 select.innerHTML = '<option value="">-- Select Animation --</option>';
+                mappingSelect.innerHTML = '<option value="">None</option>';
 
                 animations.forEach(animation => {
                     const option = document.createElement('option');
                     option.value = animation;
                     option.textContent = animation;
                     select.appendChild(option);
+
+                    const mappingOption = option.cloneNode(true);
+                    mappingSelect.appendChild(mappingOption);
                 });
             } catch (error) {
                 console.error('Failed to load animations:', error);
             }
+        }
+
+        async function loadPlaylists() {
+            try {
+                const response = await fetch('/api/playlists');
+                const data = await response.json();
+                const playlists = data.playlists || [];
+
+                const select = document.getElementById('playlistSelect');
+                select.innerHTML = '<option value="">-- Select Playlist --</option>';
+
+                playlists.forEach(playlist => {
+                    const option = document.createElement('option');
+                    option.value = playlist.name;
+                    option.textContent = `${playlist.name} (${playlist.tracks} tracks)`;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Failed to load playlists:', error);
+                document.getElementById('playlistSelect').innerHTML = '<option value="">Error loading playlists</option>';
+            }
+        }
+
+        async function loadDevices() {
+            try {
+                const response = await fetch('/devices');
+                const data = await response.json();
+                const devices = data.devices || [];
+
+                const select = document.getElementById('defaultDeviceSelect');
+                select.innerHTML = '<option value="">-- Select Device --</option>';
+
+                devices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.id;
+                    const status = device.is_active ? ' (ACTIVE)' : '';
+                    option.textContent = `${device.name} (${device.type})${status}`;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Failed to load devices:', error);
+                document.getElementById('defaultDeviceSelect').innerHTML = '<option value="">Error loading devices</option>';
+            }
+        }
+
+        async function loadDefaultDevice() {
+            try {
+                const response = await fetch('/api/default-device');
+                const data = await response.json();
+                const defaultDeviceId = data.default_device_id || '';
+
+                if (defaultDeviceId) {
+                    const select = document.getElementById('defaultDeviceSelect');
+                    // Wait a bit for devices to load
+                    setTimeout(() => {
+                        select.value = defaultDeviceId;
+                    }, 500);
+                }
+            } catch (error) {
+                console.error('Failed to load default device:', error);
+            }
+        }
+
+        async function saveDefaultDevice() {
+            const select = document.getElementById('defaultDeviceSelect');
+            const deviceId = select.value;
+
+            if (!deviceId) {
+                showDeviceMessage('Please select a device first', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/default-device', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ device_id: deviceId })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    const deviceName = select.options[select.selectedIndex].textContent;
+                    showDeviceMessage(`✅ Default device set to: ${deviceName}`, 'success');
+                } else {
+                    showDeviceMessage(result.error || 'Failed to save default device', 'error');
+                }
+            } catch (error) {
+                showDeviceMessage('Network error: ' + error.message, 'error');
+            }
+        }
+
+        async function clearDefaultDevice() {
+            try {
+                const response = await fetch('/api/default-device', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ device_id: '' })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    document.getElementById('defaultDeviceSelect').value = '';
+                    showDeviceMessage('✅ Default device cleared', 'success');
+                } else {
+                    showDeviceMessage(result.error || 'Failed to clear default device', 'error');
+                }
+            } catch (error) {
+                showDeviceMessage('Network error: ' + error.message, 'error');
+            }
+        }
+
+        function showDeviceMessage(message, type) {
+            const statusDiv = document.getElementById('deviceStatus');
+            statusDiv.className = type + '-message';
+            statusDiv.textContent = message;
+
+            setTimeout(() => {
+                statusDiv.textContent = '';
+                statusDiv.className = '';
+            }, 5000);
         }
 
         async function refreshStatus() {
@@ -497,11 +735,27 @@
                 let html = '';
                 Object.entries(mappings).forEach(([coord, mapping]) => {
                     const [x, y] = mapping.coordinates;
+                    const currentAnimation = mapping.animation || '';
+                    
+                    // Build animation dropdown options
+                    let animationOptions = '<option value="">None</option>';
+                    availableAnimations.forEach(anim => {
+                        const selected = anim === currentAnimation ? 'selected' : '';
+                        animationOptions += `<option value="${anim}" ${selected}>${anim}</option>`;
+                    });
+                    
                     html += `
                         <div class="mapping-item">
                             <span class="mapping-position">(${x},${y})</span>
                             <span class="mapping-playlist">${mapping.playlist}</span>
-                            <span class="mapping-animation">${mapping.animation}</span>
+                            <select class="mapping-animation-select" 
+                                    onchange="updateMappingAnimation(${x}, ${y}, this.value)" 
+                                    id="anim-select-${x}-${y}">
+                                ${animationOptions}
+                            </select>
+                            <div class="mapping-item-actions">
+                                <button class="btn btn-small btn-danger" onclick="deleteMapping(${x}, ${y})" title="Delete mapping">🗑️</button>
+                            </div>
                         </div>
                     `;
                 });
@@ -713,6 +967,238 @@
                 }
             } catch (error) {
                 showMessage('Network error: ' + error.message, 'error');
+            }
+        }
+
+        // Playlist Mapping Functions
+        let mappingStatusCheckInterval = null;
+
+        async function startMapping() {
+            const playlistSelect = document.getElementById('playlistSelect');
+            const animationSelect = document.getElementById('mappingAnimationSelect');
+            const playlist = playlistSelect.value;
+            const animation = animationSelect.value || null;
+
+            if (!playlist) {
+                showMappingMessage('Please select a playlist first', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/mapping/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        playlist: playlist,
+                        animation: animation
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showMappingMessage('Mapping mode active! Press a button on your Launchpad device.', 'success');
+                    document.getElementById('startMappingBtn').style.display = 'none';
+                    document.getElementById('cancelMappingBtn').style.display = 'inline-block';
+                    document.getElementById('playlistSelect').disabled = true;
+                    document.getElementById('mappingAnimationSelect').disabled = true;
+                    
+                    // Start checking mapping status
+                    if (!mappingStatusCheckInterval) {
+                        mappingStatusCheckInterval = setInterval(checkMappingStatus, 500);
+                    }
+                } else {
+                    showMappingMessage(result.error || 'Failed to start mapping mode', 'error');
+                }
+            } catch (error) {
+                showMappingMessage('Network error: ' + error.message, 'error');
+            }
+        }
+
+        async function cancelMapping() {
+            try {
+                const response = await fetch('/api/mapping/cancel', {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Check for message from server
+                    const statusResponse = await fetch('/api/mapping/status');
+                    const status = await statusResponse.json();
+                    
+                    if (status.last_message) {
+                        showMappingMessage(status.last_message.message, status.last_message.type);
+                    } else {
+                        showMappingMessage('Mapping mode cancelled', 'success');
+                    }
+                    
+                    document.getElementById('startMappingBtn').style.display = 'inline-block';
+                    document.getElementById('cancelMappingBtn').style.display = 'none';
+                    document.getElementById('playlistSelect').disabled = false;
+                    document.getElementById('mappingAnimationSelect').disabled = false;
+                    
+                    // Stop checking mapping status
+                    if (mappingStatusCheckInterval) {
+                        clearInterval(mappingStatusCheckInterval);
+                        mappingStatusCheckInterval = null;
+                    }
+                }
+            } catch (error) {
+                showMappingMessage('Network error: ' + error.message, 'error');
+            }
+        }
+
+        async function checkMappingStatus() {
+            try {
+                const response = await fetch('/api/mapping/status');
+                const status = await response.json();
+
+                // Check for pending confirmation (overwrite existing mapping)
+                if (status.pending_confirmation) {
+                    const conf = status.pending_confirmation;
+                    const existingInfo = `Playlist: ${conf.existing.name}${conf.existing.animation ? ', Animation: ' + conf.existing.animation : ''}`;
+                    const newInfo = `Playlist: ${conf.playlist}${conf.animation ? ', Animation: ' + conf.animation : ''}`;
+                    
+                    const confirmed = confirm(
+                        `⚠️ Button (${conf.x},${conf.y}) is already mapped to:\n${existingInfo}\n\n` +
+                        `Do you want to overwrite it with:\n${newInfo}?`
+                    );
+                    
+                    if (confirmed) {
+                        // User confirmed, proceed with overwrite
+                        await fetch('/api/mapping/confirm-overwrite', { method: 'POST' });
+                        showMappingMessage(`✅ Mapping overwritten successfully!`, 'success');
+                        refreshMappings();
+                    } else {
+                        // User cancelled
+                        await fetch('/api/mapping/cancel-overwrite', { method: 'POST' });
+                        showMappingMessage('Mapping cancelled. No changes made.', 'warning');
+                    }
+                    
+                    // Reset UI
+                    document.getElementById('startMappingBtn').style.display = 'inline-block';
+                    document.getElementById('cancelMappingBtn').style.display = 'none';
+                    document.getElementById('playlistSelect').disabled = false;
+                    document.getElementById('mappingAnimationSelect').disabled = false;
+                    
+                    // Stop checking mapping status
+                    if (mappingStatusCheckInterval) {
+                        clearInterval(mappingStatusCheckInterval);
+                        mappingStatusCheckInterval = null;
+                    }
+                    return;
+                }
+
+                // Show any messages from MIDI handler
+                if (status.last_message) {
+                    showMappingMessage(status.last_message.message, status.last_message.type);
+                }
+
+                if (!status.active) {
+                    // Mapping completed or cancelled
+                    if (mappingStatusCheckInterval) {
+                        clearInterval(mappingStatusCheckInterval);
+                        mappingStatusCheckInterval = null;
+                    }
+                    
+                    // Reset UI if mapping was active
+                    if (document.getElementById('cancelMappingBtn').style.display !== 'none') {
+                        document.getElementById('startMappingBtn').style.display = 'inline-block';
+                        document.getElementById('cancelMappingBtn').style.display = 'none';
+                        document.getElementById('playlistSelect').disabled = false;
+                        document.getElementById('mappingAnimationSelect').disabled = false;
+                        
+                        // Refresh mappings to show new mapping
+                        refreshMappings();
+                    }
+                }
+            } catch (error) {
+                // Silently fail - mapping status check is not critical
+            }
+        }
+
+        async function deleteMapping(x, y) {
+            if (!confirm(`Are you sure you want to delete the mapping at (${x},${y})?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/mapping/delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ x: x, y: y })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showMappingMessage(`Mapping at (${x},${y}) deleted`, 'success');
+                    refreshMappings();
+                } else {
+                    showMappingMessage(result.error || 'Failed to delete mapping', 'error');
+                }
+            } catch (error) {
+                showMappingMessage('Network error: ' + error.message, 'error');
+            }
+        }
+
+        function showMappingMessage(message, type) {
+            const statusDiv = document.getElementById('mappingStatus');
+            statusDiv.className = type + '-message';
+            statusDiv.textContent = message;
+            
+            // Scroll to message if it's not visible
+            statusDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            // Clear message after timeout (longer for errors/warnings)
+            const timeout = (type === 'error' || type === 'warning') ? 8000 : 5000;
+            setTimeout(() => {
+                statusDiv.textContent = '';
+                statusDiv.className = '';
+            }, timeout);
+        }
+
+        async function updateMappingAnimation(x, y, animation) {
+            try {
+                const response = await fetch('/api/mapping/update-animation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        x: x,
+                        y: y,
+                        animation: animation || null
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    // Show brief success feedback
+                    const selectElement = document.getElementById(`anim-select-${x}-${y}`);
+                    if (selectElement) {
+                        const originalBg = selectElement.style.background;
+                        selectElement.style.background = 'rgba(46, 204, 113, 0.3)';
+                        setTimeout(() => {
+                            selectElement.style.background = originalBg;
+                        }, 500);
+                    }
+                } else {
+                    showMappingMessage(result.error || 'Failed to update animation', 'error');
+                    // Refresh mappings to restore original value
+                    refreshMappings();
+                }
+            } catch (error) {
+                showMappingMessage('Network error: ' + error.message, 'error');
+                // Refresh mappings to restore original value
+                refreshMappings();
             }
         }
 
