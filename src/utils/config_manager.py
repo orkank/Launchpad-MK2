@@ -52,9 +52,11 @@ class ConfigManager:
 
     def get_default_audio_config(self) -> Dict[str, Any]:
         """Get default audio features configuration."""
+        # Off by default: Spotify deprecated audio-features/audio-analysis for
+        # most apps (403). Enabling only helps apps that still have access.
         return {
-            "enabled": True,
-            "auto_start": True,
+            "enabled": False,
+            "auto_start": False,
             "update_interval": 2.0,
             "features": {
                 "real_time_analysis": True,
@@ -77,11 +79,11 @@ class ConfigManager:
     # Audio Features Config Getters
     def is_audio_features_enabled(self) -> bool:
         """Check if audio features are enabled."""
-        return self.audio_features_config.get("enabled", True)
+        return self.audio_features_config.get("enabled", False)
 
     def should_auto_start_analysis(self) -> bool:
         """Check if audio analysis should auto-start."""
-        return self.audio_features_config.get("auto_start", True)
+        return self.audio_features_config.get("auto_start", False)
 
     def get_update_interval(self) -> float:
         """Get audio analysis update interval."""

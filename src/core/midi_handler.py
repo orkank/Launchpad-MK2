@@ -130,80 +130,83 @@ class MidiHandler:
         Args:
             x: X coordinate of control button
         """
-        if not self.spotify_manager or not self.spotify_manager.spotify:
-            print("Spotify not available")
+        if not self.spotify_manager or not self.spotify_manager.ensure_ready():
             return
 
-        spotify = self.spotify_manager.spotify
+        sm = self.spotify_manager
 
         if x == 0:  # Volume Up
             try:
-                device_id = get_active_or_default_device(spotify)
+                device_id = get_active_or_default_device(sm.spotify, sm)
                 if device_id:
-                    current = spotify.current_playback()
+                    current = sm.get_current_playback()
                     if current and current['device']:
                         volume = min(100, current['device']['volume_percent'] + 10)
-                        spotify.volume(volume, device_id=device_id)
+                        sm.api_call('volume', volume, device_id=device_id)
                         print(f"Volume up: {volume}%")
             except Exception as e:
-                print(f"Error adjusting volume: {e}")
+                if not sm.handle_api_error(e):
+                    print(f"Error adjusting volume: {e}")
 
         elif x == 1:  # Volume Down
             try:
-                device_id = get_active_or_default_device(spotify)
+                device_id = get_active_or_default_device(sm.spotify, sm)
                 if device_id:
-                    current = spotify.current_playback()
+                    current = sm.get_current_playback()
                     if current and current['device']:
                         volume = max(0, current['device']['volume_percent'] - 10)
-                        spotify.volume(volume, device_id=device_id)
+                        sm.api_call('volume', volume, device_id=device_id)
                         print(f"Volume down: {volume}%")
             except Exception as e:
-                print(f"Error adjusting volume: {e}")
+                if not sm.handle_api_error(e):
+                    print(f"Error adjusting volume: {e}")
 
         elif x == 2:  # Previous Track
             try:
-                device_id = get_active_or_default_device(spotify)
+                device_id = get_active_or_default_device(sm.spotify, sm)
                 if device_id:
-                    spotify.previous_track(device_id=device_id)
+                    sm.api_call('previous_track', device_id=device_id)
                     time.sleep(0.1)
-                    current = spotify.current_playback()
+                    current = sm.get_current_playback()
                     if current and current['item']:
                         print(f"Previous track: {format_track_info(current['item'], current['progress_ms'])}")
             except Exception as e:
-                print(f"Error: {e}")
+                if not sm.handle_api_error(e):
+                    print(f"Error: {e}")
 
         elif x == 3:  # Next Track
             try:
-                device_id = get_active_or_default_device(spotify)
+                device_id = get_active_or_default_device(sm.spotify, sm)
                 if device_id:
-                    spotify.next_track(device_id=device_id)
+                    sm.api_call('next_track', device_id=device_id)
                     time.sleep(0.1)
-                    current = spotify.current_playback()
+                    current = sm.get_current_playback()
                     if current and current['item']:
                         print(f"Next track: {format_track_info(current['item'], current['progress_ms'])}")
             except Exception as e:
-                print(f"Error: {e}")
+                if not sm.handle_api_error(e):
+                    print(f"Error: {e}")
 
         elif x == 5:  # Play/Pause
             try:
-                device_id = get_active_or_default_device(spotify)
+                device_id = get_active_or_default_device(sm.spotify, sm)
                 if not device_id:
                     print("No active device found")
                     return
 
-                current = spotify.current_playback()
+                current = sm.get_current_playback()
                 if current and current['is_playing']:
-                    spotify.pause_playback(device_id=device_id)
+                    sm.api_call('pause_playback', device_id=device_id)
                     print("Playback paused")
                     self.animation_controller.stop_animation()
                 else:
-                    spotify.start_playback(device_id=device_id)
+                    sm.api_call('start_playback', device_id=device_id)
                     print("Playback started")
                     if self.animation_controller.last_animation:
                         self.animation_controller.set_animation(self.animation_controller.last_animation)
             except Exception as e:
-                print(f"Error toggling playback: {e}")
-
+                if not sm.handle_api_error(e):
+                    print(f"Error toggling playback: {e}")
     def _play_playlist_for_button(self, x, y):
         """Handle playlist button press.
 
@@ -211,8 +214,7 @@ class MidiHandler:
             x: X coordinate
             y: Y coordinate
         """
-        if not self.spotify_manager or not self.spotify_manager.spotify:
-            print("Spotify not initialized")
+        if not self.spotify_manager or not self.spotify_manager.ensure_ready():
             return
 
         mapping = self.playlist_manager.get_mapping(x, y)
@@ -220,11 +222,11 @@ class MidiHandler:
             return
 
         playlist_name = mapping['name']
-        spotify = self.spotify_manager.spotify
+        sm = self.spotify_manager
 
         try:
             # Get device
-            device_id = get_active_or_default_device(spotify)
+            device_id = get_active_or_default_device(sm.spotify, sm)
             if not device_id:
                 print("No active device found")
                 return
@@ -237,13 +239,14 @@ class MidiHandler:
             # Play the playlist
             playlist_id = get_playlist_id_by_name(playlist_name)
             if playlist_id:
-                spotify.start_playback(
+                sm.api_call(
+                    'start_playback',
                     device_id=device_id,
                     context_uri=f'spotify:playlist:{playlist_id}'
                 )
                 # Wait briefly for playback to start
                 time.sleep(0.1)
-                current = spotify.current_playback()
+                current = sm.get_current_playback()
                 if current and current['item']:
                     print(f"Playing: {format_track_info(current['item'], current['progress_ms'])}")
                 print(f"Playing playlist: {playlist_name}")
@@ -251,12 +254,12 @@ class MidiHandler:
                 print(f"Playlist not found: {playlist_name}")
 
         except Exception as e:
-            print(f"Error playing playlist: {str(e)}")
+            if not self.spotify_manager.handle_api_error(e):
+                print(f"Error playing playlist: {str(e)}")
 
     def _play_random_playlist(self):
         """Play a random playlist from the mapped playlists."""
-        if not self.spotify_manager or not self.spotify_manager.spotify:
-            print("Spotify not initialized")
+        if not self.spotify_manager or not self.spotify_manager.ensure_ready():
             return
 
         try:
@@ -272,17 +275,19 @@ class MidiHandler:
             print(f"\nRandomly selected: {random_playlist}")
 
             # Get device and play
-            device_id = get_active_or_default_device(self.spotify_manager.spotify)
+            sm = self.spotify_manager
+            device_id = get_active_or_default_device(sm.spotify, sm)
             if device_id:
                 playlist_id = get_playlist_id_by_name(random_playlist)
                 if playlist_id:
-                    self.spotify_manager.spotify.start_playback(
+                    sm.api_call(
+                        'start_playback',
                         device_id=device_id,
                         context_uri=f'spotify:playlist:{playlist_id}'
                     )
                     # Wait briefly for playback to start
                     time.sleep(0.1)
-                    current = self.spotify_manager.spotify.current_playback()
+                    current = sm.get_current_playback()
                     if current and current['item']:
                         print(f"Playing: {format_track_info(current['item'], current['progress_ms'])}")
                     print(f"Playing playlist: {random_playlist}")
@@ -295,7 +300,8 @@ class MidiHandler:
                             break
 
         except Exception as e:
-            print(f"Error playing random playlist: {e}")
+            if not self.spotify_manager.handle_api_error(e):
+                print(f"Error playing random playlist: {e}")
 
     def is_system_reserved(self, x, y):
         """Check if a button is system reserved and cannot be mapped.

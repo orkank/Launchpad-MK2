@@ -18,6 +18,8 @@ class AnimationController:
         self.animation_select_mode = False
         self.audio_analyzer = audio_analyzer
         self.spotify_manager = spotify_manager
+        # When True, pad stays solid red (Spotify auth required)
+        self.auth_lockout = False
 
     def initialize(self):
         """Initialize the animation controller."""
@@ -29,6 +31,24 @@ class AnimationController:
         self.animation_thread.start()
         return True
 
+    def set_auth_lockout(self, enabled):
+        """Solid-red pad when Spotify auth is required.
+
+        Args:
+            enabled: True to force all LEDs red and pause animations
+        """
+        from ..hardware.launchpad import fill_all, clear_all
+
+        was_enabled = self.auth_lockout
+        self.auth_lockout = bool(enabled)
+
+        if enabled:
+            self.current_animation = None
+            if self.launchpad.midi_out:
+                fill_all(self.launchpad.midi_out, 255, 0, 0)
+        elif was_enabled and self.launchpad.midi_out:
+            clear_all(self.launchpad.midi_out)
+
     def set_animation(self, animation_name):
         """Set the current animation.
 
@@ -38,6 +58,10 @@ class AnimationController:
         Returns:
             bool: True if animation was set successfully
         """
+        if self.auth_lockout:
+            print("Spotify auth required — animations locked. Type 'auth' to reconnect.")
+            return False
+
         if animation_name in ANIMATIONS:
             # Clear screen when switching animations
             if self.current_animation != animation_name and self.launchpad.midi_out:
@@ -50,6 +74,9 @@ class AnimationController:
 
     def stop_animation(self):
         """Stop the current animation."""
+        if self.auth_lockout:
+            return
+
         # Clear screen when stopping
         if self.launchpad.midi_out:
             from ..hardware.launchpad import clear_all
@@ -97,6 +124,15 @@ class AnimationController:
         last_animation = None
         try:
             while self.should_run:
+                if self.auth_lockout:
+                    # Keep the pad red even if button effects flash briefly
+                    if self.launchpad.midi_out:
+                        from ..hardware.launchpad import fill_all
+                        fill_all(self.launchpad.midi_out, 255, 0, 0)
+                    last_animation = None
+                    time.sleep(0.5)
+                    continue
+
                 if self.current_animation in ANIMATIONS:
                     # Clear screen when animation changes
                     if last_animation != self.current_animation and self.launchpad.midi_out:

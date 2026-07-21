@@ -112,6 +112,20 @@ def clear_all(midi_out):
     Args:
         midi_out: MIDI output device
     """
+    fill_all(midi_out, 0, 0, 0)
+
+
+def fill_all(midi_out, r, g, b):
+    """Set every Launchpad LED to the same color.
+
+    Args:
+        midi_out: MIDI output device
+        r: Red value (0-255)
+        g: Green value (0-255)
+        b: Blue value (0-255)
+    """
+    if not midi_out:
+        return
     for y in range(9):
         for x in range(9):
-            set_color(midi_out, x, y, 0, 0, 0)
+            set_color(midi_out, x, y, r, g, b)

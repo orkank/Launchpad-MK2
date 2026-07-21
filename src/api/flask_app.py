@@ -3,10 +3,14 @@
 import logging
 from flask import Flask, jsonify, render_template, request
 from ..services.playlist_manager import show_playlist_animation_preview
-from ..services.spotify_manager import get_active_or_default_device, format_track_info
+from ..services.spotify_manager import (
+    get_active_or_default_device,
+    format_track_info,
+    get_oauth_redirect_uri,
+)
 
 
-def create_app(animation_controller=None, spotify_manager=None, playlist_manager=None, audio_analyzer=None, midi_handler=None):
+def create_app(animation_controller=None, spotify_manager=None, playlist_manager=None, audio_analyzer=None, midi_handler=None, reauth_callback=None):
     """Create Flask application with API routes.
 
     Args:
@@ -15,6 +19,7 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
         playlist_manager: Playlist manager instance
         audio_analyzer: Audio analyzer instance
         midi_handler: MIDI handler instance
+        reauth_callback: Callable that performs Spotify re-authentication
 
     Returns:
         Flask: Configured Flask application
@@ -31,6 +36,7 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
     app.spotify_manager = spotify_manager
     app.playlist_manager = playlist_manager
     app.midi_handler = midi_handler
+    app.reauth_callback = reauth_callback
 
     @app.route('/animation/<name>')
     def set_animation(name):
@@ -56,13 +62,83 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
 
     @app.route('/devices')
     def list_devices():
+        if app.spotify_manager and app.spotify_manager.needs_reauth:
+            return jsonify({
+                'error': 'Spotify authentication required',
+                'needs_reauth': True
+            }), 401
         if app.spotify_manager and app.spotify_manager.spotify:
             try:
                 devices = app.spotify_manager.spotify.devices()
                 return jsonify(devices)
             except Exception as e:
+                if app.spotify_manager.handle_api_error(e):
+                    return jsonify({
+                        'error': str(e),
+                        'needs_reauth': True
+                    }), 401
                 return jsonify({'error': str(e)}), 500
-        return jsonify({'error': 'Spotify not initialized'}), 500
+        return jsonify({'error': 'Spotify not initialized', 'needs_reauth': True}), 500
+
+    @app.route('/callback')
+    def spotify_oauth_callback():
+        """Spotify redirects here after the user approves (or denies) access."""
+        error = request.args.get('error')
+        code = request.args.get('code')
+        state = request.args.get('state')
+        redirect_uri = get_oauth_redirect_uri()
+
+        if not app.spotify_manager:
+            return render_template(
+                'auth_callback.html',
+                success=False,
+                message='Spotify manager is not available.',
+                redirect_uri=redirect_uri,
+            ), 500
+
+        if error:
+            app.spotify_manager.complete_oauth(error=error, state=state)
+            return render_template(
+                'auth_callback.html',
+                success=False,
+                message=f'Spotify returned an error: {error}',
+                redirect_uri=redirect_uri,
+            )
+
+        success = app.spotify_manager.complete_oauth(code=code, state=state)
+        return render_template(
+            'auth_callback.html',
+            success=success,
+            message=None if success else (
+                getattr(app.spotify_manager, '_oauth_error', None)
+                or 'Could not complete Spotify login.'
+            ),
+            redirect_uri=redirect_uri,
+        )
+
+    @app.route('/auth/reauth', methods=['POST'])
+    def reauth_spotify():
+        """Clear cached tokens and open Spotify OAuth again."""
+        if not app.reauth_callback:
+            return jsonify({'error': 'Re-authentication not available'}), 500
+        try:
+            success = app.reauth_callback()
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Spotify re-authenticated successfully'
+                })
+            return jsonify({
+                'status': 'error',
+                'message': (
+                    'Re-authentication failed or timed out. '
+                    f'Finish login in the browser (callback: {get_oauth_redirect_uri()}).'
+                ),
+                'needs_reauth': True,
+                'redirect_uri': get_oauth_redirect_uri(),
+            }), 500
+        except Exception as e:
+            return jsonify({'error': str(e), 'needs_reauth': True}), 500
 
     @app.route('/device/<device_id>')
     def select_device(device_id):
@@ -135,6 +211,7 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
         """Get current system status."""
         status = {
             'spotify_connected': False,
+            'needs_reauth': False,
             'current_track': None,
             'is_playing': False,
             'current_animation': None
@@ -145,12 +222,16 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
             status['current_animation'] = app.animation_controller.current_animation
 
         # Spotify status
+        if app.spotify_manager and app.spotify_manager.needs_reauth:
+            status['needs_reauth'] = True
+            return jsonify(status)
+
         if app.spotify_manager and app.spotify_manager.spotify:
             try:
-                current = app.spotify_manager.spotify.current_playback()
+                current = app.spotify_manager.get_current_playback()
                 status['spotify_connected'] = True
 
-                if current and current['item']:
+                if current and current.get('item'):
                     track = current['item']
                     artists = ", ".join([artist['name'] for artist in track['artists']])
                     status['current_track'] = {
@@ -161,69 +242,112 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
                     status['is_playing'] = current['is_playing']
 
             except Exception as e:
-                print(f"Error getting Spotify status: {e}")
+                if app.spotify_manager.handle_api_error(e):
+                    status['needs_reauth'] = True
+                else:
+                    print(f"Error getting Spotify status: {e}")
 
         return jsonify(status)
+
+    def _spotify_playback_error(exc):
+        if app.spotify_manager and app.spotify_manager.handle_api_error(exc):
+            return jsonify({
+                'error': str(exc),
+                'needs_reauth': True
+            }), 401
+        return jsonify({'error': str(exc)}), 500
 
     @app.route('/play', methods=['POST'])
     def play():
         """Start Spotify playback."""
+        if app.spotify_manager and app.spotify_manager.needs_reauth:
+            return jsonify({'error': 'Spotify authentication required', 'needs_reauth': True}), 401
         if app.spotify_manager and app.spotify_manager.spotify:
             try:
-                device_id = get_active_or_default_device(app.spotify_manager.spotify)
+                device_id = get_active_or_default_device(
+                    app.spotify_manager.spotify, app.spotify_manager
+                )
                 if device_id:
                     app.spotify_manager.spotify.start_playback(device_id=device_id)
                     return jsonify({'status': 'success'})
                 else:
-                    return jsonify({'error': 'No active device found'}), 400
+                    err = {'error': 'No active device found'}
+                    if app.spotify_manager.needs_reauth:
+                        err['needs_reauth'] = True
+                        return jsonify(err), 401
+                    return jsonify(err), 400
             except Exception as e:
-                return jsonify({'error': str(e)}), 500
-        return jsonify({'error': 'Spotify not initialized'}), 500
+                return _spotify_playback_error(e)
+        return jsonify({'error': 'Spotify not initialized', 'needs_reauth': True}), 500
 
     @app.route('/pause', methods=['POST'])
     def pause():
         """Pause Spotify playback."""
+        if app.spotify_manager and app.spotify_manager.needs_reauth:
+            return jsonify({'error': 'Spotify authentication required', 'needs_reauth': True}), 401
         if app.spotify_manager and app.spotify_manager.spotify:
             try:
-                device_id = get_active_or_default_device(app.spotify_manager.spotify)
+                device_id = get_active_or_default_device(
+                    app.spotify_manager.spotify, app.spotify_manager
+                )
                 if device_id:
                     app.spotify_manager.spotify.pause_playback(device_id=device_id)
                     return jsonify({'status': 'success'})
                 else:
-                    return jsonify({'error': 'No active device found'}), 400
+                    err = {'error': 'No active device found'}
+                    if app.spotify_manager.needs_reauth:
+                        err['needs_reauth'] = True
+                        return jsonify(err), 401
+                    return jsonify(err), 400
             except Exception as e:
-                return jsonify({'error': str(e)}), 500
-        return jsonify({'error': 'Spotify not initialized'}), 500
+                return _spotify_playback_error(e)
+        return jsonify({'error': 'Spotify not initialized', 'needs_reauth': True}), 500
 
     @app.route('/next', methods=['POST'])
     def next_track():
         """Skip to next track."""
+        if app.spotify_manager and app.spotify_manager.needs_reauth:
+            return jsonify({'error': 'Spotify authentication required', 'needs_reauth': True}), 401
         if app.spotify_manager and app.spotify_manager.spotify:
             try:
-                device_id = get_active_or_default_device(app.spotify_manager.spotify)
+                device_id = get_active_or_default_device(
+                    app.spotify_manager.spotify, app.spotify_manager
+                )
                 if device_id:
                     app.spotify_manager.spotify.next_track(device_id=device_id)
                     return jsonify({'status': 'success'})
                 else:
-                    return jsonify({'error': 'No active device found'}), 400
+                    err = {'error': 'No active device found'}
+                    if app.spotify_manager.needs_reauth:
+                        err['needs_reauth'] = True
+                        return jsonify(err), 401
+                    return jsonify(err), 400
             except Exception as e:
-                return jsonify({'error': str(e)}), 500
-        return jsonify({'error': 'Spotify not initialized'}), 500
+                return _spotify_playback_error(e)
+        return jsonify({'error': 'Spotify not initialized', 'needs_reauth': True}), 500
 
     @app.route('/previous', methods=['POST'])
     def previous_track():
         """Skip to previous track."""
+        if app.spotify_manager and app.spotify_manager.needs_reauth:
+            return jsonify({'error': 'Spotify authentication required', 'needs_reauth': True}), 401
         if app.spotify_manager and app.spotify_manager.spotify:
             try:
-                device_id = get_active_or_default_device(app.spotify_manager.spotify)
+                device_id = get_active_or_default_device(
+                    app.spotify_manager.spotify, app.spotify_manager
+                )
                 if device_id:
                     app.spotify_manager.spotify.previous_track(device_id=device_id)
                     return jsonify({'status': 'success'})
                 else:
-                    return jsonify({'error': 'No active device found'}), 400
+                    err = {'error': 'No active device found'}
+                    if app.spotify_manager.needs_reauth:
+                        err['needs_reauth'] = True
+                        return jsonify(err), 401
+                    return jsonify(err), 400
             except Exception as e:
-                return jsonify({'error': str(e)}), 500
-        return jsonify({'error': 'Spotify not initialized'}), 500
+                return _spotify_playback_error(e)
+        return jsonify({'error': 'Spotify not initialized', 'needs_reauth': True}), 500
 
     # Audio Features Endpoints
     @app.route('/api/audio_features/status')

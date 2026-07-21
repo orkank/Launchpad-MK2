@@ -4,5 +4,6 @@ A modular system for controlling Spotify playback and LED animations
 using a Novation Launchpad MK2.
 """
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 __author__ = "Orkan Koylu"
+

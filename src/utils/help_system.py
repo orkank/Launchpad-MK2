@@ -46,6 +46,7 @@ def show_help():
     spotify_table.add_column("Description", style="white")
 
     spotify_table.add_row("s", "📱 Show and select Spotify devices")
+    spotify_table.add_row("auth", "🔐 Re-authenticate Spotify (fix revoked tokens)")
 
     system_table = Table(title="⚙️ System Commands", show_header=True, header_style="bold red")
     system_table.add_column("Command", style="cyan", width=8)
@@ -98,6 +99,8 @@ def show_help():
 • [link]http://localhost:5125/mappings[/link] - Playlist mappings (JSON)
 • [link]http://localhost:5125/animation/<name>[/link] - Start animation
 • [link]http://localhost:5125/devices[/link] - Spotify devices (JSON)
+• [link]http://localhost:5125/auth/reauth[/link] - Re-authenticate Spotify (POST)
+• [link]http://127.0.0.1:5125/callback[/link] - Spotify OAuth welcome / callback page
 
 [yellow]Features:[/yellow]
 • 📱 Simple control panel for basic operations
@@ -144,9 +147,11 @@ def show_quick_status(playlist_manager, animation_controller, spotify_manager):
     spotify_status = "❌ Disconnected"
     current_track = "None"
 
-    if spotify_manager and spotify_manager.spotify:
+    if spotify_manager and getattr(spotify_manager, 'needs_reauth', False):
+        spotify_status = "🔐 Needs re-auth (type 'auth')"
+    elif spotify_manager and spotify_manager.spotify:
         try:
-            current = spotify_manager.spotify.current_playback()
+            current = spotify_manager.get_current_playback()
             if current and current['item']:
                 spotify_status = "✅ Connected"
                 track_name = current['item']['name'][:30]
@@ -155,8 +160,13 @@ def show_quick_status(playlist_manager, animation_controller, spotify_manager):
                 current_track = track_name
             else:
                 spotify_status = "⏸️ Not Playing"
-        except:
-            spotify_status = "⚠️ Error"
+        except Exception as e:
+            from ..services.spotify_manager import is_auth_failure
+            if is_auth_failure(e):
+                spotify_manager.mark_auth_failed(e)
+                spotify_status = "🔐 Needs re-auth (type 'auth')"
+            else:
+                spotify_status = "⚠️ Error"
 
     status_table = Table(title="📊 Quick Status", show_header=True, header_style="bold cyan")
     status_table.add_column("Item", style="yellow", width=20)
@@ -166,6 +176,13 @@ def show_quick_status(playlist_manager, animation_controller, spotify_manager):
     status_table.add_row("🎵 Mapped Playlists", str(mapped_playlists))
     status_table.add_row("🎧 Spotify", spotify_status)
     status_table.add_row("🎶 Current Track", current_track)
+
+    # Put Spotify auth problems at the bottom of the status table in loud red
+    if spotify_manager and getattr(spotify_manager, 'needs_reauth', False):
+        status_table.add_row(
+            "⚠️ Auth",
+            "[bold white on red] BROKEN — type auth [/]"
+        )
 
     console.print(status_table)
     console.print()
@@ -182,9 +199,10 @@ def show_simple_help():
     commands_text = """[bold cyan]Available Commands:[/bold cyan]
 [yellow]h[/yellow] - Show detailed help        [yellow]v[/yellow] - Preview playlist mappings
 [yellow]s[/yellow] - Spotify devices          [yellow]p[/yellow] - Fetch playlists
-[yellow]a[/yellow] - Start animations         [yellow]x[/yellow] - Stop animation
-[yellow]g[/yellow] - Generate mappings        [yellow]r[/yellow] - Randomize animations
-[yellow]q[/yellow] - Quit                     [dim]Web: http://localhost:5125[/dim]
+[yellow]auth[/yellow] - Re-authenticate Spotify [yellow]a[/yellow] - Start animations
+[yellow]x[/yellow] - Stop animation           [yellow]g[/yellow] - Generate mappings
+[yellow]r[/yellow] - Randomize animations     [yellow]q[/yellow] - Quit
+[dim]Web: http://localhost:5125[/dim]
 """
 
     console.print(commands_text)

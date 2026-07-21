@@ -11,7 +11,9 @@ from .services.spotify_manager import (
     SpotifyManager,
     initialize_spotify,
     show_spotify_devices,
-    fetch_and_save_playlists
+    fetch_and_save_playlists,
+    set_oauth_redirect_uri,
+    configure_spotipy_logging,
 )
 from .services.playlist_manager import (
     PlaylistManager,
@@ -24,6 +26,7 @@ from .animations import ANIMATIONS
 from .api.flask_app import create_app
 from .utils.helpers import print_available_animations, print_available_playlists
 from .utils.help_system import show_help, show_quick_status
+from .utils.auth_alert import AuthAlertService, print_auth_warning
 
 
 class LaunchpadController:
@@ -38,15 +41,17 @@ class LaunchpadController:
         self.status_monitor = None
         self.flask_app = None
         self.flask_thread = None
+        self.auth_alert = None
 
     def initialize(self):
         """Initialize all components."""
         print("Initializing Launchpad MK2 Controller...")
 
-        # Initialize Spotify
+        # Initialize Spotify (initialize_spotify already validates the session)
         spotify_client = initialize_spotify()
         if spotify_client:
             self.spotify_manager.spotify = spotify_client
+            self.spotify_manager.needs_reauth = False
             print("Spotify initialized successfully")
 
             # Initialize audio analyzer for Spotify-powered features
@@ -60,7 +65,10 @@ class LaunchpadController:
                 print("🎵 Audio analyzer initialized but disabled")
                 print("   Use 'af enable' to enable Spotify audio features")
         else:
-            print("Failed to initialize Spotify. Continuing without Spotify support.")
+            # Keep early logs quiet — AuthAlertService prints a loud banner
+            # at the end of startup and every 5s until the user runs 'auth'.
+            self.spotify_manager.needs_reauth = True
+            self.audio_analyzer = create_audio_analyzer(self.spotify_manager, enabled=False)
 
         # Load playlist mappings
         self.playlist_manager.load_mappings()
@@ -90,17 +98,65 @@ class LaunchpadController:
             )
             print("MIDI handler initialized")
 
-        # Start status monitor
-        if self.spotify_manager.spotify:
-            self.status_monitor = StatusMonitor(
-                self.spotify_manager,
-                self.animation_controller,
-                self.playlist_manager
-            )
-            self.status_monitor.start()
-            print("Spotify status monitor started")
+        # Start status monitor only when auth is healthy
+        if self.spotify_manager.spotify and not self.spotify_manager.needs_reauth:
+            self._start_status_monitor()
 
         return True
+
+    def _start_status_monitor(self):
+        """Start (or restart) the Spotify status monitor."""
+        if self.status_monitor:
+            self.status_monitor.stop()
+        self.status_monitor = StatusMonitor(
+            self.spotify_manager,
+            self.animation_controller,
+            self.playlist_manager
+        )
+        self.status_monitor.start()
+        print("Spotify status monitor started")
+
+    def reauthenticate_spotify(self):
+        """Clear tokens, open Spotify OAuth, and restart dependent services.
+
+        Returns:
+            bool: True if re-authentication succeeded
+        """
+        if self.status_monitor:
+            self.status_monitor.stop()
+            self.status_monitor = None
+
+        if self.audio_analyzer:
+            self.audio_analyzer.pause()
+
+        if self.animation_controller:
+            # Keep pad red until login completes; alert loop will manage it
+            self.animation_controller.set_auth_lockout(True)
+
+        success = self.spotify_manager.reauthenticate()
+
+        if success:
+            if self.animation_controller:
+                self.animation_controller.set_auth_lockout(False)
+            self._start_status_monitor()
+            # Keep audio features off unless explicitly enabled (Spotify 403 for most apps)
+            if self.audio_analyzer:
+                self.audio_analyzer.pause()
+                if (config_manager.is_audio_features_enabled() and
+                        config_manager.should_auto_start_analysis()):
+                    self.audio_analyzer.enable()
+                    if (not self.audio_analyzer.analysis_thread or
+                            not self.audio_analyzer.analysis_thread.is_alive()):
+                        self.audio_analyzer.start_analysis()
+                    self.audio_analyzer.resume()
+            print("Spotify services restarted.")
+        else:
+            self.spotify_manager.needs_reauth = True
+            if self.animation_controller:
+                self.animation_controller.set_auth_lockout(True)
+            print("Spotify still unavailable. Try 'auth' again when ready.")
+
+        return success
 
     def start_api(self, host='0.0.0.0', port=5125):
         """Start the Flask API server.
@@ -114,7 +170,8 @@ class LaunchpadController:
             self.spotify_manager,
             self.playlist_manager,
             self.audio_analyzer,
-            self.midi_handler
+            self.midi_handler,
+            reauth_callback=self.reauthenticate_spotify
         )
         self.flask_thread = threading.Thread(
             target=lambda: self.flask_app.run(
@@ -134,6 +191,10 @@ class LaunchpadController:
         # Show initial status
         show_quick_status(self.playlist_manager, self.animation_controller, self.spotify_manager)
 
+        # Auth banner last so it isn't buried under startup / Flask logs
+        if self.spotify_manager.needs_reauth:
+            print_auth_warning()
+
         while True:
             try:
                 cmd = input().lower().strip()
@@ -144,17 +205,17 @@ class LaunchpadController:
                 elif cmd == 'v':
                     self.playlist_manager.show_preview('table')
 
+                elif cmd in ('auth', 'reauth'):
+                    self.reauthenticate_spotify()
+
                 elif cmd == 's':
-                    if self.spotify_manager.spotify:
+                    if self.spotify_manager.ensure_ready():
                         show_spotify_devices(self.spotify_manager.spotify)
-                    else:
-                        print("Spotify not initialized")
+                    # ensure_ready already prints recovery hint
 
                 elif cmd == 'p':
-                    if self.spotify_manager.spotify:
+                    if self.spotify_manager.ensure_ready():
                         fetch_and_save_playlists(self.spotify_manager.spotify)
-                    else:
-                        print("Spotify not initialized")
 
                 elif cmd == 'l':
                     print_available_playlists()
@@ -182,7 +243,7 @@ class LaunchpadController:
                     print("Animation stopped")
 
                 elif cmd == 'g':
-                    if self.spotify_manager.spotify:
+                    if self.spotify_manager.ensure_ready():
                         print("\nSelect filter type:")
                         print("1. Newest playlists")
                         print("2. Most popular playlists")
@@ -209,8 +270,6 @@ class LaunchpadController:
                                 'newest'
                             )
                             self.playlist_manager.load_mappings()
-                    else:
-                        print("Spotify not initialized")
 
                 elif cmd == 'r':
                     print("\nRandomizing animations for all playlists...")
@@ -339,6 +398,9 @@ class LaunchpadController:
         """Shutdown all components."""
         print("Shutting down...")
 
+        if self.auth_alert:
+            self.auth_alert.stop()
+
         if self.status_monitor:
             self.status_monitor.stop()
 
@@ -359,6 +421,12 @@ def main():
     parser.add_argument('--api-port', type=int, default=5125, help='API port (default: 5125)')
     args = parser.parse_args()
 
+    configure_spotipy_logging()
+
+    # Spotify requires 127.0.0.1 (not localhost). Flask serves /callback with
+    # our welcome page — register this exact URI in the Developer Dashboard.
+    set_oauth_redirect_uri(f'http://127.0.0.1:{args.api_port}/callback')
+
     controller = LaunchpadController()
 
     try:
@@ -366,8 +434,16 @@ def main():
             print("Failed to initialize controller")
             return 1
 
-        # Start API server
+        # Start API server (also hosts Spotify OAuth /callback)
         controller.start_api(args.api_host, args.api_port)
+
+        # Repeat auth warnings + keep Launchpad red while token is invalid
+        controller.auth_alert = AuthAlertService(
+            controller.spotify_manager,
+            controller.animation_controller,
+            interval=5.0,
+        )
+        controller.auth_alert.start()
 
         # TODO: Implement Homebridge server if requested
         if args.homebridge:

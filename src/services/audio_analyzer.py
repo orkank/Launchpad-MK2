@@ -4,6 +4,12 @@ import time
 import threading
 from typing import Dict, Optional, Tuple
 
+from .spotify_manager import (
+    is_auth_failure,
+    is_audio_features_restricted,
+    is_transient_token_error,
+)
+
 
 class AudioAnalyzer:
     """Analyzes Spotify audio features for dynamic animation control."""
@@ -17,9 +23,11 @@ class AudioAnalyzer:
         self.should_run = True
         self.enabled = enabled
         self._paused = False
+        self._restricted = False  # Spotify 403 on deprecated endpoints
 
     def start_analysis(self):
         """Start continuous audio analysis."""
+        self.should_run = True
         self.analysis_thread = threading.Thread(target=self._analysis_loop, daemon=True)
         self.analysis_thread.start()
 
@@ -28,25 +36,61 @@ class AudioAnalyzer:
         self.should_run = False
         if self.analysis_thread:
             self.analysis_thread.join(timeout=1)
+            self.analysis_thread = None
 
     def _analysis_loop(self):
         """Continuous analysis loop."""
         while self.should_run:
             try:
-                if self.enabled and not self._paused:
+                if (self.spotify_manager and
+                        (self.spotify_manager.needs_reauth or not self.spotify_manager.spotify)):
+                    time.sleep(2)
+                    continue
+
+                if self.enabled and not self._paused and not self._restricted:
                     self._update_analysis()
                 time.sleep(2)  # Update every 2 seconds
             except Exception as e:
+                if is_audio_features_restricted(e):
+                    self._disable_due_to_restriction(e)
+                    continue
+                if is_auth_failure(e):
+                    self.spotify_manager.mark_auth_failed(e)
+                    continue
+                if is_transient_token_error(e):
+                    time.sleep(1)
+                    continue
                 print(f"Audio analysis error: {e}")
                 time.sleep(5)
 
+    def _disable_due_to_restriction(self, exc=None):
+        """Stop calling deprecated audio-features endpoints after Spotify 403."""
+        if self._restricted:
+            return
+        self._restricted = True
+        self.enabled = False
+        print("\n" + "=" * 60)
+        print("Spotify audio-features/audio-analysis returned 403.")
+        print("These endpoints are restricted for most apps (Nov 2024).")
+        print("Audio features have been disabled so playback keeps working.")
+        print("Use 'af enable' only if your Spotify app still has access.")
+        print("=" * 60 + "\n")
+        try:
+            from ..utils.config_manager import config_manager
+            config_manager.set_audio_features_enabled(False)
+        except Exception:
+            pass
+
     def _update_analysis(self):
         """Update audio features and analysis for current track."""
-        if not self.spotify_manager or not self.spotify_manager.spotify:
+        if (not self.spotify_manager or
+                self.spotify_manager.needs_reauth or
+                not self.spotify_manager.spotify or
+                self._restricted):
             return
 
         try:
-            current = self.spotify_manager.spotify.current_playback()
+            current = self.spotify_manager.get_current_playback()
             if not current or not current['item']:
                 return
 
@@ -56,20 +100,42 @@ class AudioAnalyzer:
             if track_id != self.last_track_id:
                 self.last_track_id = track_id
 
-                # Get audio features
-                features = self.spotify_manager.spotify.audio_features([track_id])[0]
-                if features:
-                    self.current_features = features
-
-                # Get audio analysis (detailed)
                 try:
-                    analysis = self.spotify_manager.spotify.audio_analysis(track_id)
+                    features = self.spotify_manager.api_call(
+                        'audio_features', [track_id], quiet=False
+                    )
+                    if features and features[0]:
+                        self.current_features = features[0]
+                except Exception as e:
+                    if is_audio_features_restricted(e):
+                        self._disable_due_to_restriction(e)
+                        return
+                    raise
+
+                # Get audio analysis (detailed) — also often 403 now
+                try:
+                    analysis = self.spotify_manager.api_call(
+                        'audio_analysis', track_id, quiet=False
+                    )
                     self.current_analysis = analysis
                 except Exception as e:
-                    print(f"Could not get audio analysis: {e}")
+                    if is_audio_features_restricted(e):
+                        self._disable_due_to_restriction(e)
+                        return
+                    if is_auth_failure(e):
+                        self.spotify_manager.mark_auth_failed(e)
+                    else:
+                        print(f"Could not get audio analysis: {e}")
 
         except Exception as e:
-            print(f"Error updating audio analysis: {e}")
+            if is_audio_features_restricted(e):
+                self._disable_due_to_restriction(e)
+            elif is_auth_failure(e):
+                self.spotify_manager.mark_auth_failed(e)
+            elif is_transient_token_error(e):
+                pass
+            else:
+                print(f"Error updating audio analysis: {e}")
 
     def get_current_features(self) -> Optional[Dict]:
         """Get current track's audio features."""
@@ -247,6 +313,9 @@ class AudioAnalyzer:
 
     def enable(self):
         """Enable audio analysis."""
+        if self._restricted:
+            print("🔇 Audio features blocked by Spotify (403). Cannot enable.")
+            return
         self.enabled = True
         print("🎵 Spotify audio features enabled")
 

@@ -1,5 +1,7 @@
 # Launchpad MK2 Spotify Controller
 
+**Version:** 2.1.0
+
 This project was created to repurpose an old Novation Launchpad MK2 as a Spotify controller. The script allows you to control Spotify playback and create LED animations through both direct interaction and HTTP requests, enabling integration with other applications.
 
 ![Launchpad MK2 Spotify Controller](giphy.gif)
@@ -21,6 +23,36 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 - **🎉 NEW: Enhanced playlist mapping preview** with visual grid layout
 
 ## Updates
+
+### 2.1.0 — Spotify auth recovery & dashboard URI migration (July 2026)
+
+**Release notes**
+- Recover from revoked / invalid Spotify refresh tokens without restarting the whole app (`auth` command + web **Re-auth**)
+- OAuth callback now uses the built-in web UI at `http://127.0.0.1:5125/callback` (welcome / success page)
+- Clear console + Launchpad LED alerts when Spotify login is required (pad turns red)
+- Audio features disabled by default (Spotify restricted `/audio-features` for most apps; 403 no longer breaks playback)
+- Thread-safe Spotify API access to avoid intermittent `Access token missing` races
+- Random LED animation when playback is not tied to a mapped playlist
+
+**Action required for existing users (Spotify Developer Dashboard)**
+
+Spotify tightened redirect URI rules. Old values like `http://localhost:8888/callback` or `https://localhost:8888/callback` are rejected (`Insecure` / `Not matching configuration`).
+
+1. Open [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) → your app → **Settings**
+2. Under **Redirect URIs**, add exactly:
+   ```
+   http://127.0.0.1:5125/callback
+   ```
+3. Click **Add**, then **Save** at the bottom of the page
+4. You may remove obsolete `localhost` / `:8888` URIs
+5. Restart the controller and run `auth` (terminal) or **Re-auth** (web UI)
+
+Notes:
+- Use `127.0.0.1`, not `localhost`
+- Local loopback may stay on `http://`; public apps need `https://`
+- The redirect URI in the Dashboard must match the app exactly (same Client ID as in `config/.secret`)
+
+See also: [Spotify Redirect URIs](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri) and the [security requirements update](https://developer.spotify.com/blog/2025-02-12-increasing-the-security-requirements-for-integrating-with-spotify).
 
 ### 🎯 New Feature: Web-Based Playlist Mapping Editor (February 2026)
 
@@ -382,7 +414,7 @@ If you encounter issues installing the requirements:
    - Fill in the application details:
      - App name: (e.g., "Launchpad Controller")
      - App description: (e.g., "Launchpad MK2 Spotify Controller")
-     - Redirect URI: `http://localhost:8888/callback`
+     - Redirect URI (exact): `http://127.0.0.1:5125/callback`
    - Click "Create"
 
 3. Get Your Credentials:
@@ -393,7 +425,7 @@ If you encounter issues installing the requirements:
      - Client Secret (click "View Client Secret" to reveal)
 
 4. Create `.secret` file:
-   - Create a file named `.secret` in the same directory as the script
+   - Prefer `config/.secret` (project default)
    - Add your credentials in this format:
 ```
 client_id=YOUR_CLIENT_ID
@@ -408,6 +440,12 @@ client_secret=YOUR_CLIENT_SECRET
      - `user-read-playback-state`
      - `playlist-read-private`
    - These are automatically requested during authentication
+
+6. Re-authenticate when the token is revoked:
+   - Terminal: type `auth` (or `reauth`)
+   - Web UI: open `http://localhost:5125/` → **Re-auth**
+   - Browser opens Spotify login; after approval you should see the app’s callback page
+   - If login fails with `redirect_uri: Not matching configuration` or `Insecure`, update the Dashboard URI as described in the **2.1.0** release notes above
 
 [Source: Spotify Web API Getting Started Guide](https://developer.spotify.com/documentation/web-api/tutorials/getting-started)
 
@@ -506,15 +544,14 @@ The animation will automatically change when you start the playlist. If no anima
 3. Run the script:
 
 ```bash
-python mk2.py
+python main.py
 ```
 
-4. On first run:
-   - The script will open your browser for Spotify authentication
-   - Log in to your Spotify account
-   - Grant the requested permissions
-   - Copy the URL from the browser and paste it into the script (it will be in the form of http://localhost:5125/callback?code=...)
-   - Callback URI doesnt matter, just use http://localhost:5125/callback.
+4. On first run (or after a revoked token):
+   - Ensure Redirect URI `http://127.0.0.1:5125/callback` is saved in the Spotify Dashboard
+   - Type `auth` in the terminal (or use **Re-auth** in the web UI)
+   - Log in to Spotify and grant permissions
+   - You should land on the app’s callback / welcome page — no URL paste required
 
 ## Commands
 
@@ -522,6 +559,7 @@ python mk2.py
 |---------|-------------|
 | **`h`** | 🎨 **Show detailed colorized help** with hardware controls and tips |
 | **`v`** | 📋 **Preview playlist-animation mappings** with visual grid layout |
+| `auth` | 🔐 Re-authenticate Spotify (fix revoked / invalid refresh tokens) |
 | `s` | 📱 Show and select available Spotify devices |
 | `p` | 📥 Fetch and save your Spotify playlists to `.playlists` file |
 | `l` | 📋 List all available playlists |
@@ -660,8 +698,6 @@ The web interface is fully responsive and works great on:
 - 📱 **Mobile phones** - Touch-friendly controls
 - 💻 **Desktop browsers** - Full feature access
 - 📟 **Tablets** - Optimized layout
-
-**Pro Tip:** Bookmark `http://localhost:5125` for quick access to your Launchpad controls from any device on your network!
 
 ## Launchpad Layout
 
