@@ -34,6 +34,13 @@ def configure_spotipy_logging():
             logger.addFilter(_SuppressTransientSpotipyLogs())
 
 TOKEN_CACHE_PATH = '.cache'
+SECRET_FILE = os.path.join('config', '.secret')
+SAMPLE_SECRET_FILE = os.path.join('config', 'sample.secret')
+DEFAULT_SECRET_TEMPLATE = (
+    "client_id=\n"
+    "client_secret=\n"
+    "default_device_id=\n"
+)
 
 # Spotify no longer allows "localhost" (Insecure). Loopback HTTP is still OK
 # as an explicit IP: https://developer.spotify.com/documentation/web-api/concepts/redirect_uri
@@ -129,9 +136,17 @@ class SpotifyManager:
         self._oauth_lock = threading.Lock()
         # Serialize API use — Spotipy token refresh/cache is not thread-safe
         self._api_lock = threading.RLock()
+        # Ensure config/.secret exists on first run after clone
+        ensure_secret_file()
+
+    @property
+    def credentials_configured(self) -> bool:
+        """True when config/.secret has non-empty client_id and client_secret."""
+        return are_spotify_credentials_configured()
 
     def initialize(self, force_reauth=False):
         """Initialize Spotify client with required scopes."""
+        ensure_secret_file()
         client = initialize_spotify(force_reauth=force_reauth)
         if client:
             self.spotify = client
@@ -201,9 +216,20 @@ class SpotifyManager:
             self._oauth_event = threading.Event()
 
             # open_browser=False: Spotipy must NOT bind :5125 (Flask owns it)
+            if not are_spotify_credentials_configured():
+                self.needs_reauth = True
+                self._oauth_error = 'missing_credentials'
+                print(
+                    "Spotify Client ID/Secret missing. "
+                    "Add them in the web UI (Settings → Spotify API Credentials) "
+                    f"or edit {SECRET_FILE}."
+                )
+                return None
+
             auth_manager = create_auth_manager(show_dialog=True, open_browser=False)
             if not auth_manager:
                 self.needs_reauth = True
+                self._oauth_error = 'missing_credentials'
                 return None
 
             self._pending_auth_manager = auth_manager
@@ -306,7 +332,13 @@ class SpotifyManager:
         """
         auth_url = self.begin_oauth(open_browser=open_browser)
         if not auth_url:
-            print("Re-authentication failed. Check credentials in config/.secret")
+            if not are_spotify_credentials_configured():
+                print(
+                    f"Re-authentication failed: set Client ID and Secret in {SECRET_FILE} "
+                    "(or Settings → Spotify API Credentials in the web UI)."
+                )
+            else:
+                print("Re-authentication failed. Check credentials in config/.secret")
             print(f"Confirm Redirect URI in Spotify Dashboard: {OAUTH_REDIRECT_URI}")
             self.needs_reauth = True
             return False
@@ -390,23 +422,120 @@ class SpotifyManager:
                 raise
 
 
+def ensure_secret_file():
+    """Create config/.secret from sample (or a blank template) if missing.
+
+    Returns:
+        bool: True if the file exists after this call
+    """
+    if os.path.exists(SECRET_FILE):
+        return True
+
+    os.makedirs(os.path.dirname(SECRET_FILE) or 'config', exist_ok=True)
+    try:
+        if os.path.exists(SAMPLE_SECRET_FILE):
+            with open(SAMPLE_SECRET_FILE, 'r', encoding='utf-8') as src:
+                content = src.read()
+            if not content.strip():
+                content = DEFAULT_SECRET_TEMPLATE
+        else:
+            content = DEFAULT_SECRET_TEMPLATE
+
+        with open(SECRET_FILE, 'w', encoding='utf-8') as dest:
+            dest.write(content if content.endswith('\n') else content + '\n')
+        print(f"Created {SECRET_FILE} from sample — add your Spotify Client ID and Secret.")
+        return True
+    except OSError as e:
+        print(f"Could not create {SECRET_FILE}: {e}")
+        return False
+
+
+def read_secret_values():
+    """Read key=value pairs from config/.secret (creates file if missing)."""
+    ensure_secret_file()
+    secrets = {}
+    try:
+        with open(SECRET_FILE, 'r', encoding='utf-8') as f:
+            for line in f:
+                if '=' not in line:
+                    continue
+                key, value = line.strip().split('=', 1)
+                secrets[key] = value
+    except OSError as e:
+        print(f"Error reading {SECRET_FILE}: {e}")
+    return secrets
+
+
+def write_secret_values(updates):
+    """Merge updates into config/.secret and write the file.
+
+    Args:
+        updates: dict of keys to set (None values are written as empty string)
+    """
+    ensure_secret_file()
+    secrets = read_secret_values()
+    for key, value in (updates or {}).items():
+        secrets[key] = '' if value is None else str(value)
+
+    # Stable preferred order, then any extra keys
+    preferred = ('client_id', 'client_secret', 'default_device_id')
+    lines = []
+    seen = set()
+    for key in preferred:
+        if key in secrets:
+            lines.append(f"{key}={secrets[key]}")
+            seen.add(key)
+    for key, value in secrets.items():
+        if key not in seen:
+            lines.append(f"{key}={value}")
+
+    with open(SECRET_FILE, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines) + '\n')
+
+
 def _load_spotify_credentials():
     """Load client_id / client_secret from config/.secret."""
-    with open('config/.secret', 'r') as f:
-        secrets = dict(line.strip().split('=') for line in f if '=' in line)
-    client_id = secrets.get('client_id')
-    client_secret = secrets.get('client_secret')
+    secrets = read_secret_values()
+    client_id = (secrets.get('client_id') or '').strip()
+    client_secret = (secrets.get('client_secret') or '').strip()
     if not client_id or not client_secret:
-        print("Missing Spotify credentials in .secret file")
         return None, None
     return client_id, client_secret
+
+
+def are_spotify_credentials_configured() -> bool:
+    """True when both Spotify API credentials are present in config/.secret."""
+    client_id, client_secret = _load_spotify_credentials()
+    return bool(client_id and client_secret)
+
+
+def save_spotify_credentials(client_id, client_secret):
+    """Persist Spotify API credentials to config/.secret.
+
+    Returns:
+        bool: True on success
+    """
+    client_id = (client_id or '').strip()
+    client_secret = (client_secret or '').strip()
+    if not client_id or not client_secret:
+        raise ValueError('Both client_id and client_secret are required')
+    write_secret_values({
+        'client_id': client_id,
+        'client_secret': client_secret,
+    })
+    return True
 
 
 def create_auth_manager(show_dialog=False, open_browser=False):
     """Build a SpotifyOAuth manager using the Flask callback redirect URI."""
     try:
+        ensure_secret_file()
         client_id, client_secret = _load_spotify_credentials()
-        if not client_id:
+        if not client_id or not client_secret:
+            print(
+                f"Missing Spotify credentials in {SECRET_FILE}. "
+                "Set Client ID and Secret (Settings in the web UI, or edit the file)."
+            )
             return None
 
         return SpotifyOAuth(
@@ -436,6 +565,14 @@ def initialize_spotify(force_reauth=False):
     """
     configure_spotipy_logging()
     try:
+        ensure_secret_file()
+        if not are_spotify_credentials_configured():
+            print(
+                f"Spotify API credentials not set in {SECRET_FILE}. "
+                "Open the web panel → Settings → Spotify API Credentials."
+            )
+            return None
+
         if force_reauth:
             clear_token_cache(TOKEN_CACHE_PATH)
 
@@ -606,8 +743,7 @@ def is_local_spotify_device(device):
 def read_default_device_id():
     """Read default_device_id from config/.secret."""
     try:
-        with open('config/.secret', 'r') as f:
-            secrets = dict(line.strip().split('=', 1) for line in f if '=' in line)
+        secrets = read_secret_values()
         return (secrets.get('default_device_id') or '').strip()
     except Exception:
         return ''

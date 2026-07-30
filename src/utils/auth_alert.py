@@ -8,21 +8,46 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.align import Align
 
-from ..services.spotify_manager import get_oauth_redirect_uri
+from ..services.spotify_manager import (
+    get_oauth_redirect_uri,
+    are_spotify_credentials_configured,
+    SECRET_FILE,
+)
 
 
 def print_auth_warning():
     """Print a high-visibility Spotify auth warning to the terminal."""
     console = Console(stderr=False)
     body = Text()
-    body.append("SPOTIFY AUTH REQUIRED\n\n", style="bold white on red")
-    body.append("Token missing or revoked — Launchpad Spotify control is locked.\n", style="bold red")
-    body.append("Type ", style="white")
-    body.append("auth", style="bold yellow")
-    body.append(" here, or click ", style="white")
-    body.append("Re-auth", style="bold yellow")
-    body.append(" at ", style="white")
-    body.append("http://localhost:5125", style="bold cyan")
+    missing_creds = not are_spotify_credentials_configured()
+
+    if missing_creds:
+        body.append("SPOTIFY SETUP REQUIRED\n\n", style="bold white on red")
+        body.append(
+            "Client ID / Secret are missing — auth cannot start.\n",
+            style="bold red",
+        )
+        body.append("Open ", style="white")
+        body.append("http://localhost:5125", style="bold cyan")
+        body.append(" → Settings → Spotify API Credentials\n", style="white")
+        body.append("or edit ", style="white")
+        body.append(SECRET_FILE, style="bold yellow")
+        body.append(" then run ", style="white")
+        body.append("auth", style="bold yellow")
+        body.append(".\n", style="white")
+    else:
+        body.append("SPOTIFY AUTH REQUIRED\n\n", style="bold white on red")
+        body.append(
+            "Token missing or revoked — Launchpad Spotify control is locked.\n",
+            style="bold red",
+        )
+        body.append("Type ", style="white")
+        body.append("auth", style="bold yellow")
+        body.append(" here, or click ", style="white")
+        body.append("Re-auth", style="bold yellow")
+        body.append(" at ", style="white")
+        body.append("http://localhost:5125", style="bold cyan")
+
     body.append("\n\nSpotify Dashboard Redirect URI (unchanged for all users):\n", style="white")
     body.append(get_oauth_redirect_uri(), style="bold bright_white")
 

@@ -1,12 +1,12 @@
 # Launchpad MK2 Spotify Controller
 
-**Version:** 2.3.0
+**Version:** 2.3.1
 
 This project was created to repurpose an old Novation Launchpad MK2 as a Spotify controller. The script allows you to control Spotify playback and create LED animations through both direct interaction and HTTP requests, enabling integration with other applications.
 
 ![Launchpad MK2 web control panel](webpanel.png)
 
-*The web control panel was redesigned in **2.3.0** — a desktop-style dashboard with sidebar navigation, Now Playing hero, live stats, playlist mappings, user actions, and quick controls. It is also responsive for phones and tablets.*
+*The web control panel was redesigned in **2.3.0** — a desktop-style dashboard with sidebar navigation, Now Playing hero, live stats, playlist mappings, user actions, and quick controls. It is also responsive for phones and tablets. **2.3.1** adds first-run Spotify credential setup and playlist tools directly in the panel.*
 
 ![Launchpad MK2 Spotify Controller](giphy.gif)
 
@@ -26,9 +26,37 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 - Mode indicator LEDs that stay locked while Session / User modes are active
 - Rich colorized terminal interface with help and status displays
 - **Redesigned web control panel** — sidebar navigation, dashboard overview, dark/light theme, mobile-friendly layout
+- **First-run Spotify setup in the web panel** — paste Client ID / Secret without editing `config/.secret` by hand
+- Playlist tools in the web UI: fetch playlists, generate/replace mappings, randomize animations, clear all
 - Enhanced playlist mapping preview with visual grid layout
 
 ## Updates
+
+### 2.3.1 — First-run Spotify setup & playlist tools in the web panel (July 2026)
+
+**Release notes**
+- **Web Spotify credential setup**: after a fresh clone, missing `config/.secret` is created automatically from `config/sample.secret`
+- Enter **Client ID / Client Secret** on the Dashboard setup banner or in **Settings → Spotify API Credentials** (no need to edit files by hand)
+- **Save & Sign in** writes credentials then opens the Spotify OAuth flow
+- Status / console alerts distinguish “credentials missing” from “token expired”
+- **Playlist Tools** in the web panel (CLI equivalents):
+  - Fetch Playlists (`p`) — save Spotify playlists to `.playlists`
+  - Generate Mappings (`g`) — fill empty pads **or** replace all mappings
+  - Randomize Animations (`r`) — shuffle animations on existing maps
+- **Clear All** on the Playlist Mappings list
+
+**First-run (clone → web)**
+1. Start the controller (`python main.py`)
+2. Open `http://127.0.0.1:5125/`
+3. Paste Client ID + Secret from the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+4. Click **Save & Sign in** (Redirect URI must be `http://127.0.0.1:5125/callback`)
+
+**API**
+- `GET/POST /api/spotify-credentials` — credential status (secret never returned) / save credentials
+- `POST /api/playlists/fetch` — fetch & save playlists
+- `POST /api/mapping/generate` — body `{ "filter": "newest|popular|all", "mode": "fill|replace" }`
+- `POST /api/mapping/randomize-animations`
+- `POST /api/mapping/clear-all`
 
 ### 2.3.0 — Web panel redesign & mobile layout (July 2026)
 
@@ -473,15 +501,14 @@ If you encounter issues installing the requirements:
      - Client ID
      - Client Secret (click "View Client Secret" to reveal)
 
-4. Create `.secret` file:
-   - Prefer `config/.secret` (project default)
-   - Add your credentials in this format:
+4. Add Spotify credentials (pick one):
+   - **Recommended — web panel (2.3.1+):** start the app, open `http://127.0.0.1:5125/`, paste Client ID + Secret into the setup form, click **Save & Sign in**
+   - **Manual:** copy `config/sample.secret` → `config/.secret` (created automatically on first run if missing) and fill:
 ```
 client_id=YOUR_CLIENT_ID
 client_secret=YOUR_CLIENT_SECRET
 ```
-   - Save the file
-   - Note: Never share or commit your `.secret` file!
+   - Never share or commit `config/.secret` (it is gitignored)
 
 5. Required Spotify Permissions:
    - Your app needs the following scopes:
@@ -492,7 +519,7 @@ client_secret=YOUR_CLIENT_SECRET
 
 6. Re-authenticate when the token is revoked:
    - Terminal: type `auth` (or `reauth`)
-   - Web UI: open `http://localhost:5125/` → **Re-auth**
+   - Web UI: open `http://127.0.0.1:5125/` → **Re-auth** (or **Save & Sign in** if credentials are not set yet)
    - Browser opens Spotify login; after approval you should see the app’s callback page
    - If login fails with `redirect_uri: Not matching configuration` or `Insecure`, update the Dashboard URI as described in the **2.1.0** release notes above
 
@@ -691,12 +718,14 @@ Visit **`http://127.0.0.1:5125`** for the updated desktop-style web panel:
 
 - **Dashboard**
   - Now Playing hero with playback + Re-auth
+  - First-run **Spotify API credentials** form when `config/.secret` is empty
   - Current animation / device status cards
   - Live stats (mapped playlists, animations, user actions, Spotify)
   - Recent mappings, user actions preview, and quick actions
 
 - **Playlists**
-  - Mapping editor + full mappings list with animation dropdowns and delete
+  - **Playlist Tools**: fetch playlists, generate mappings (fill empty / replace all), randomize animations
+  - Mapping editor + full mappings list with animation dropdowns, delete, and **Clear All**
 
 - **Animations**
   - Start/stop animations
@@ -709,6 +738,7 @@ Visit **`http://127.0.0.1:5125`** for the updated desktop-style web panel:
   - List, edit, and delete mapped actions
 
 - **Settings**
+  - Spotify API Credentials (Client ID / Secret) + Save & Sign in
   - Default Spotify device
   - Auto-launch Spotify when closed (only if default device is this Mac)
   - Re-auth + appearance controls
@@ -728,6 +758,16 @@ Visit **`http://127.0.0.1:5125`** for the updated desktop-style web panel:
 - `POST /pause` - Pause playback
 - `POST /next` - Next track
 - `POST /previous` - Previous track
+- `GET /api/spotify-credentials` - Whether credentials are configured (secret never returned)
+- `POST /api/spotify-credentials` - Save Client ID / Secret to `config/.secret`
+
+#### 🎵 Playlist Tools & Mapping
+- `GET /api/playlists` - List Spotify playlists
+- `POST /api/playlists/fetch` - Fetch and save playlists to `.playlists`
+- `POST /api/mapping/generate` - Auto-map pads (`filter`, `mode=fill|replace`)
+- `POST /api/mapping/randomize-animations` - Shuffle animations on all mappings
+- `POST /api/mapping/clear-all` - Remove every playlist mapping
+- `POST /api/mapping/start|cancel|delete|update-animation` - Interactive mapping editor APIs
 
 #### 👤 User Mode Actions
 - `GET /api/user-actions` - List User 1 / User 2 action banks (`?profile=user1|user2`)
@@ -743,7 +783,7 @@ Visit **`http://127.0.0.1:5125`** for the updated desktop-style web panel:
 - `POST /api/app-settings` - Body `{ "auto_launch_spotify": true|false }`
 
 #### 📊 Status & Data
-- `GET /status` - Real-time system status (JSON)
+- `GET /status` - Real-time system status (JSON; includes `credentials_configured` / `setup_required`)
 - `GET /mappings` - Playlist mappings with coordinates (JSON)
 
 ### 💻 **Command Line Examples**

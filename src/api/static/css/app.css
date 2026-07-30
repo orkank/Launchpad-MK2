@@ -566,15 +566,67 @@ textarea {
     z-index: 1;
 }
 
-.auth-warning {
+.auth-warning,
+.setup-warning {
     display: none;
     margin-top: var(--space-2);
     padding: 12px 14px;
     border-radius: var(--radius-sm);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.auth-warning {
     background: rgba(255, 100, 124, 0.1);
     border: 1px solid rgba(255, 100, 124, 0.28);
     color: var(--danger);
-    font-size: 13px;
+}
+
+.setup-warning {
+    background: rgba(255, 184, 77, 0.12);
+    border: 1px solid rgba(255, 184, 77, 0.35);
+    color: var(--warning);
+}
+
+.setup-warning a {
+    color: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.setup-warning code,
+.card-desc code {
+    font-size: 12px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--line);
+    color: var(--ink);
+}
+
+.setup-cred-form {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 184, 77, 0.28);
+}
+
+.setup-cred-form .form-group {
+    margin-bottom: 10px;
+}
+
+.setup-cred-form .form-group label {
+    color: var(--ink);
+}
+
+.setup-cred-form .form-group input {
+    background: rgba(0, 0, 0, 0.25);
+    border-color: rgba(255, 184, 77, 0.28);
+    color: var(--ink);
+}
+
+[data-theme="light"] .setup-cred-form .form-group input {
+    background: #fff;
 }
 
 .midi-warning {

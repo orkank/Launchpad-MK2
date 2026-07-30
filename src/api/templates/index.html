@@ -154,6 +154,34 @@
                             <div id="authWarning" class="auth-warning">
                                 Spotify login expired. Click Re-auth (browser will open on the host machine).
                             </div>
+                            <div id="setupWarning" class="setup-warning">
+                                <strong>Spotify API credentials missing.</strong>
+                                Paste your Client ID and Secret below — saved to <code>config/.secret</code> on this machine.
+                                Create an app in the
+                                <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify Developer Dashboard</a>
+                                and set Redirect URI to <code id="setupRedirectUri">http://127.0.0.1:5125/callback</code>.
+                                <div class="setup-cred-form">
+                                    <div class="form-group">
+                                        <label for="setupClientId">Client ID</label>
+                                        <input type="text" id="setupClientId" class="spotify-client-id" autocomplete="off" spellcheck="false" placeholder="Paste Client ID">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="setupClientSecret">Client Secret</label>
+                                        <input type="password" id="setupClientSecret" class="spotify-client-secret" autocomplete="off" spellcheck="false" placeholder="Paste Client Secret">
+                                    </div>
+                                    <div class="controls">
+                                        <button class="btn btn-primary" type="button" id="setupSaveCredsBtn" onclick="saveSpotifyCredentials({ source: 'setup', thenReauth: true })">
+                                            <i data-lucide="key-round"></i>
+                                            <span>Save &amp; Sign in</span>
+                                        </button>
+                                        <button class="btn" type="button" onclick="saveSpotifyCredentials({ source: 'setup' })">
+                                            <i data-lucide="save"></i>
+                                            <span>Save only</span>
+                                        </button>
+                                    </div>
+                                    <div id="setupCredMessage"></div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="card summary-card">
@@ -561,6 +589,36 @@
                         </div>
 
                         <div class="card">
+                            <div class="card-title">Spotify API Credentials</div>
+                            <p class="card-desc">
+                                Required after a fresh clone. Create an app in the
+                                <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify Developer Dashboard</a>,
+                                set Redirect URI to <code id="credRedirectUri">http://127.0.0.1:5125/callback</code>,
+                                then paste Client ID and Secret here (saved to <code>config/.secret</code>).
+                            </p>
+                            <div class="form-group">
+                                <label for="spotifyClientId">Client ID</label>
+                                <input type="text" id="spotifyClientId" class="spotify-client-id" autocomplete="off" spellcheck="false" placeholder="Paste Client ID">
+                            </div>
+                            <div class="form-group">
+                                <label for="spotifyClientSecret">Client Secret</label>
+                                <input type="password" id="spotifyClientSecret" class="spotify-client-secret" autocomplete="off" spellcheck="false" placeholder="Paste Client Secret">
+                            </div>
+                            <p class="card-desc" id="spotifyCredStatus" style="margin-top:0;">Checking credentials…</p>
+                            <div class="controls">
+                                <button class="btn btn-primary" type="button" id="saveSpotifyCredsBtn" onclick="saveSpotifyCredentials({ source: 'settings', thenReauth: true })">
+                                    <i data-lucide="key-round"></i>
+                                    <span>Save &amp; Sign in</span>
+                                </button>
+                                <button class="btn" type="button" onclick="saveSpotifyCredentials({ source: 'settings' })">
+                                    <i data-lucide="save"></i>
+                                    <span>Save only</span>
+                                </button>
+                            </div>
+                            <div id="spotifyCredMessage"></div>
+                        </div>
+
+                        <div class="card">
                             <div class="card-title">Account &amp; Appearance</div>
                             <p class="card-desc">Re-authenticate Spotify or switch between light and dark themes.</p>
                             <div class="controls">
@@ -671,6 +729,10 @@
 
             if (isMobileNav()) {
                 closeMobileNav();
+            }
+
+            if (name === 'settings') {
+                loadSpotifyCredentials();
             }
 
             refreshIcons();
@@ -834,6 +896,127 @@
             if (select) select.focus();
         }
 
+        function getSpotifyCredentialInputs(source) {
+            if (source === 'setup') {
+                return {
+                    idInput: document.getElementById('setupClientId'),
+                    secretInput: document.getElementById('setupClientSecret'),
+                    msg: document.getElementById('setupCredMessage'),
+                    btn: document.getElementById('setupSaveCredsBtn'),
+                };
+            }
+            return {
+                idInput: document.getElementById('spotifyClientId'),
+                secretInput: document.getElementById('spotifyClientSecret'),
+                msg: document.getElementById('spotifyCredMessage'),
+                btn: document.getElementById('saveSpotifyCredsBtn'),
+            };
+        }
+
+        function syncSpotifyCredentialFields(clientId, clearSecret) {
+            document.querySelectorAll('.spotify-client-id').forEach((el) => {
+                if (clientId != null) el.value = clientId;
+            });
+            if (clearSecret) {
+                document.querySelectorAll('.spotify-client-secret').forEach((el) => {
+                    el.value = '';
+                });
+            }
+        }
+
+        async function loadSpotifyCredentials() {
+            const statusEl = document.getElementById('spotifyCredStatus');
+            try {
+                const response = await fetch('/api/spotify-credentials');
+                const data = await response.json();
+                const uriEls = [
+                    document.getElementById('credRedirectUri'),
+                    document.getElementById('setupRedirectUri'),
+                ];
+                uriEls.forEach((uriEl) => {
+                    if (uriEl && data.redirect_uri) uriEl.textContent = data.redirect_uri;
+                });
+
+                if (statusEl) {
+                    statusEl.textContent = data.configured
+                        ? `Credentials configured${data.client_id_masked ? ` (${data.client_id_masked})` : ''}. You can overwrite them below.`
+                        : 'Not configured yet — paste Client ID and Secret, then Save & Sign in.';
+                    statusEl.style.color = data.configured ? 'var(--success)' : 'var(--warning)';
+                }
+                if (data.configured && data.client_id_masked) {
+                    document.querySelectorAll('.spotify-client-id').forEach((el) => {
+                        if (!el.value) el.placeholder = data.client_id_masked;
+                    });
+                }
+            } catch (error) {
+                if (statusEl) {
+                    statusEl.textContent = 'Could not load credential status';
+                    statusEl.style.color = 'var(--danger)';
+                }
+            }
+        }
+
+        async function saveSpotifyCredentials(options) {
+            const opts = options || {};
+            const source = opts.source || 'settings';
+            const thenReauth = !!opts.thenReauth;
+            const { idInput, secretInput, msg, btn } = getSpotifyCredentialInputs(source);
+            const clientId = idInput?.value?.trim() || '';
+            const clientSecret = secretInput?.value?.trim() || '';
+
+            if (!clientId || !clientSecret) {
+                if (msg) {
+                    msg.className = 'error-message';
+                    msg.textContent = 'Both Client ID and Client Secret are required';
+                }
+                showMessage('Both Client ID and Client Secret are required', 'error');
+                return;
+            }
+
+            if (btn) btn.disabled = true;
+            try {
+                const response = await fetch('/api/spotify-credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, client_secret: clientSecret })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    if (msg) {
+                        msg.className = 'success-message';
+                        msg.textContent = thenReauth
+                            ? 'Credentials saved — opening Spotify login…'
+                            : (data.message || 'Credentials saved');
+                    }
+                    showMessage(
+                        thenReauth ? 'Credentials saved — opening Spotify login…' : (data.message || 'Credentials saved'),
+                        'success'
+                    );
+                    syncSpotifyCredentialFields(clientId, true);
+                    await loadSpotifyCredentials();
+                    await refreshStatus();
+                    if (thenReauth) {
+                        await reauthSpotify();
+                    }
+                } else {
+                    if (msg) {
+                        msg.className = 'error-message';
+                        msg.textContent = data.error || 'Failed to save credentials';
+                    }
+                    showMessage(data.error || 'Failed to save credentials', 'error');
+                }
+            } catch (error) {
+                if (msg) {
+                    msg.className = 'error-message';
+                    msg.textContent = 'Network error: ' + error.message;
+                }
+                showMessage('Failed to save credentials', 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+                refreshIcons();
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             initTheme();
 
@@ -845,6 +1028,7 @@
             loadDevices();
             loadDefaultDevice();
             loadAppSettings();
+            loadSpotifyCredentials();
             refreshStatus();
             refreshMappings();
             refreshAudioFeaturesStatus();
@@ -1154,12 +1338,23 @@
                 const data = await response.json();
 
                 updateTrackInfo(data.current_track, data.is_playing);
-                updateSpotifyStatus(data.spotify_connected, data.needs_reauth);
+                updateSpotifyStatus(
+                    data.spotify_connected,
+                    data.needs_reauth,
+                    data.credentials_configured !== false
+                );
                 updateLaunchpadStatus(data.launchpad_connected, data.launchpad_port);
 
+                const setupRequired = data.setup_required || data.credentials_configured === false;
                 const authWarning = document.getElementById('authWarning');
+                const setupWarning = document.getElementById('setupWarning');
+                if (setupWarning) {
+                    setupWarning.style.display = setupRequired ? 'block' : 'none';
+                    const uriEl = document.getElementById('setupRedirectUri');
+                    if (uriEl && data.redirect_uri) uriEl.textContent = data.redirect_uri;
+                }
                 if (authWarning) {
-                    authWarning.style.display = data.needs_reauth ? 'block' : 'none';
+                    authWarning.style.display = (!setupRequired && data.needs_reauth) ? 'block' : 'none';
                 }
 
                 currentAnimationName = data.current_animation;
@@ -1168,7 +1363,7 @@
             } catch (error) {
                 console.error('Failed to refresh status:', error);
                 document.getElementById('spotifyStatus').textContent = 'Error';
-                updateSpotifyStatus(false, false);
+                updateSpotifyStatus(false, false, true);
                 updateLaunchpadStatus(false, null);
             }
         }
@@ -1231,6 +1426,10 @@
                     showMessage('Spotify re-authenticated successfully', 'success');
                 } else {
                     showMessage(data.message || data.error || 'Re-authentication failed', 'error');
+                    if (data.setup_required || data.credentials_configured === false) {
+                        showSection('settings');
+                        await loadSpotifyCredentials();
+                    }
                 }
                 await refreshStatus();
             } catch (error) {
@@ -1346,17 +1545,21 @@
             }
         }
 
-        function updateSpotifyStatus(connected, needsReauth) {
+        function updateSpotifyStatus(connected, needsReauth, credentialsConfigured) {
             const status = document.getElementById('spotifyStatus');
             const hint = document.getElementById('spotifyStatusHint');
             const sidebarLabel = document.getElementById('sidebarSpotifyLabel');
             const sidebarDot = document.getElementById('sidebarSpotifyDot');
             const heroText = document.getElementById('heroSpotifyText');
             const heroBadge = document.getElementById('heroSpotifyBadge');
+            const setupNeeded = credentialsConfigured === false;
 
             let label = 'Disconnected';
             let color = 'var(--muted)';
-            if (needsReauth) {
+            if (setupNeeded) {
+                label = 'Setup';
+                color = 'var(--warning)';
+            } else if (needsReauth) {
                 label = 'Re-auth';
                 color = 'var(--warning)';
             } else if (connected) {
@@ -1365,18 +1568,26 @@
             }
 
             if (status) status.textContent = label;
-            if (hint) hint.textContent = needsReauth ? 'Login required' : (connected ? 'Connected' : 'Offline');
+            if (hint) {
+                hint.textContent = setupNeeded
+                    ? 'Add API credentials'
+                    : (needsReauth ? 'Login required' : (connected ? 'Connected' : 'Offline'));
+            }
             if (sidebarLabel) sidebarLabel.textContent = label;
             if (sidebarDot) sidebarDot.style.background = color;
-            if (heroText) heroText.textContent = needsReauth ? 'Re-auth needed' : (connected ? 'Spotify Connected' : 'Spotify Offline');
+            if (heroText) {
+                heroText.textContent = setupNeeded
+                    ? 'Setup required'
+                    : (needsReauth ? 'Re-auth needed' : (connected ? 'Spotify Connected' : 'Spotify Offline'));
+            }
             if (heroBadge) {
-                heroBadge.style.borderColor = needsReauth
+                heroBadge.style.borderColor = (setupNeeded || needsReauth)
                     ? 'rgba(255,184,77,0.35)'
                     : (connected ? 'rgba(30,215,96,0.28)' : 'var(--line-strong)');
-                heroBadge.style.color = needsReauth
+                heroBadge.style.color = (setupNeeded || needsReauth)
                     ? 'var(--warning)'
                     : (connected ? 'var(--spotify)' : 'var(--muted)');
-                heroBadge.style.background = needsReauth
+                heroBadge.style.background = (setupNeeded || needsReauth)
                     ? 'rgba(255,184,77,0.12)'
                     : (connected ? 'rgba(30,215,96,0.12)' : 'rgba(255,255,255,0.04)');
             }

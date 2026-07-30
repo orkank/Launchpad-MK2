@@ -18,6 +18,11 @@ from ..services.spotify_manager import (
     annotate_devices_with_local,
     read_default_device_id,
     fetch_and_save_playlists,
+    are_spotify_credentials_configured,
+    read_secret_values,
+    write_secret_values,
+    save_spotify_credentials,
+    SECRET_FILE,
 )
 from ..utils.config_manager import config_manager
 
@@ -153,6 +158,19 @@ def create_app(
         """Clear cached tokens and open Spotify OAuth again."""
         if not app.reauth_callback:
             return jsonify({'error': 'Re-authentication not available'}), 500
+        if not are_spotify_credentials_configured():
+            return jsonify({
+                'status': 'error',
+                'error': 'Spotify Client ID and Secret are not configured',
+                'message': (
+                    'Add your Spotify API credentials in Settings → Spotify API Credentials, '
+                    f'or edit {SECRET_FILE}.'
+                ),
+                'needs_reauth': True,
+                'credentials_configured': False,
+                'setup_required': True,
+                'redirect_uri': get_oauth_redirect_uri(),
+            }), 400
         try:
             success = app.reauth_callback()
             if success:
@@ -186,12 +204,51 @@ def create_app(
     def get_default_device():
         """Get default device ID from .secret file."""
         try:
-            with open('config/.secret', 'r') as f:
-                secrets = dict(line.strip().split('=', 1) for line in f if '=' in line)
-                default_device_id = secrets.get('default_device_id', '')
-                return jsonify({'default_device_id': default_device_id})
-        except FileNotFoundError:
-            return jsonify({'default_device_id': ''})
+            return jsonify({'default_device_id': read_default_device_id()})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/spotify-credentials', methods=['GET'])
+    def get_spotify_credentials():
+        """Return whether Spotify API credentials are configured (never returns the secret)."""
+        secrets = read_secret_values()
+        client_id = (secrets.get('client_id') or '').strip()
+        configured = are_spotify_credentials_configured()
+        masked_id = ''
+        if client_id:
+            if len(client_id) <= 8:
+                masked_id = client_id[:2] + '…'
+            else:
+                masked_id = client_id[:4] + '…' + client_id[-4:]
+        return jsonify({
+            'configured': configured,
+            'client_id_masked': masked_id,
+            'secret_path': SECRET_FILE,
+            'redirect_uri': get_oauth_redirect_uri(),
+            'setup_required': not configured,
+        })
+
+    @app.route('/api/spotify-credentials', methods=['POST'])
+    def set_spotify_credentials():
+        """Save Spotify Client ID / Secret to config/.secret."""
+        data = request.get_json(silent=True) or {}
+        client_id = (data.get('client_id') or '').strip()
+        client_secret = (data.get('client_secret') or '').strip()
+        if not client_id or not client_secret:
+            return jsonify({
+                'error': 'Both client_id and client_secret are required',
+            }), 400
+        try:
+            save_spotify_credentials(client_id, client_secret)
+            return jsonify({
+                'success': True,
+                'configured': True,
+                'message': (
+                    'Credentials saved. Click Re-auth Spotify to sign in. '
+                    f'Redirect URI must be {get_oauth_redirect_uri()} in the Spotify Dashboard.'
+                ),
+                'redirect_uri': get_oauth_redirect_uri(),
+            })
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
@@ -202,21 +259,7 @@ def create_app(
         device_id = data.get('device_id', '')
 
         try:
-            # Read existing secrets
-            secrets = {}
-            try:
-                with open('config/.secret', 'r') as f:
-                    secrets = dict(line.strip().split('=', 1) for line in f if '=' in line)
-            except FileNotFoundError:
-                pass
-
-            # Update default_device_id
-            secrets['default_device_id'] = device_id
-
-            # Write back to file
-            with open('config/.secret', 'w') as f:
-                for key, value in secrets.items():
-                    f.write(f"{key}={value}\n")
+            write_secret_values({'default_device_id': device_id or ''})
 
             auto_launch_disabled = False
             # Auto-launch Spotify is only valid when default device is this Mac
@@ -329,9 +372,14 @@ def create_app(
     @app.route('/status')
     def get_status():
         """Get current system status."""
+        credentials_ok = are_spotify_credentials_configured()
         status = {
             'spotify_connected': False,
             'needs_reauth': False,
+            'credentials_configured': credentials_ok,
+            'setup_required': not credentials_ok,
+            'secret_path': SECRET_FILE,
+            'redirect_uri': get_oauth_redirect_uri(),
             'current_track': None,
             'is_playing': False,
             'current_animation': None,
@@ -348,6 +396,10 @@ def create_app(
                 status['launchpad_port'] = launchpad.port_name if status['launchpad_connected'] else None
 
         # Spotify status
+        if not credentials_ok:
+            status['needs_reauth'] = True
+            return jsonify(status)
+
         if app.spotify_manager and app.spotify_manager.needs_reauth:
             status['needs_reauth'] = True
             return jsonify(status)
