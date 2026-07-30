@@ -11,11 +11,13 @@ class ConfigManager:
     def __init__(self, config_dir="config"):
         self.config_dir = config_dir
         self.audio_features_config = None
+        self.app_settings = None
         self.load_configs()
 
     def load_configs(self):
         """Load all configuration files."""
         self.load_audio_features_config()
+        self.load_app_settings()
 
     def load_audio_features_config(self) -> Dict[str, Any]:
         """Load audio features configuration."""
@@ -61,7 +63,7 @@ class ConfigManager:
             "features": {
                 "real_time_analysis": True,
                 "auto_animation_selection": True,
-                "adaptive_animations": True,
+                "adaptive_animations": False,
                 "spectrum_visualization": True
             },
             "performance": {
@@ -152,6 +154,9 @@ class ConfigManager:
 - Auto-start: {self.should_auto_start_analysis()}
 - Update interval: {self.get_update_interval()}s
 
+**App Settings:**
+- Auto-launch Spotify: {self.is_auto_launch_spotify_enabled()}
+
 **Features:**
 - Real-time analysis: {self.is_feature_enabled('real_time_analysis')}
 - Auto animation selection: {self.is_feature_enabled('auto_animation_selection')}
@@ -169,6 +174,57 @@ class ConfigManager:
 - Show feature changes: {self.get_ui_setting('show_feature_changes', True)}
         """
         return summary.strip()
+
+    # --- App settings (config/app_settings.json) ---
+
+    def get_default_app_settings(self) -> Dict[str, Any]:
+        """Default application settings."""
+        return {
+            "auto_launch_spotify": False,
+        }
+
+    def load_app_settings(self) -> Dict[str, Any]:
+        """Load app settings from disk."""
+        config_file = os.path.join(self.config_dir, "app_settings.json")
+        try:
+            if os.path.exists(config_file):
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                defaults = self.get_default_app_settings()
+                defaults.update(data if isinstance(data, dict) else {})
+                self.app_settings = defaults
+            else:
+                self.app_settings = self.get_default_app_settings()
+                self.save_app_settings()
+        except Exception as e:
+            print(f"⚠️ Error loading app settings: {e}")
+            self.app_settings = self.get_default_app_settings()
+        return self.app_settings
+
+    def save_app_settings(self):
+        """Persist app settings."""
+        config_file = os.path.join(self.config_dir, "app_settings.json")
+        try:
+            os.makedirs(self.config_dir, exist_ok=True)
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(self.app_settings, f, indent=2)
+        except Exception as e:
+            print(f"⚠️ Error saving app settings: {e}")
+
+    def is_auto_launch_spotify_enabled(self) -> bool:
+        """Whether Spotify desktop app should auto-launch when needed."""
+        if self.app_settings is None:
+            self.load_app_settings()
+        return bool(self.app_settings.get("auto_launch_spotify", False))
+
+    def set_auto_launch_spotify(self, enabled: bool):
+        """Enable/disable auto-launch of the Spotify desktop app."""
+        if self.app_settings is None:
+            self.load_app_settings()
+        self.app_settings["auto_launch_spotify"] = bool(enabled)
+        self.save_app_settings()
+        status = "enabled" if enabled else "disabled"
+        print(f"🎧 Auto-launch Spotify {status}")
 
 
 # Global instance

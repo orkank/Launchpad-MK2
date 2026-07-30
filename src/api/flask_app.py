@@ -1,16 +1,39 @@
 """Flask web API for Launchpad MK2 control."""
 
 import logging
+from pathlib import Path
+
 from flask import Flask, jsonify, render_template, request
-from ..services.playlist_manager import show_playlist_animation_preview
+from .. import __version__
+from ..animations import ANIMATIONS
+from ..services.playlist_manager import (
+    show_playlist_animation_preview,
+    generate_playlist_mappings,
+    randomize_animations,
+)
 from ..services.spotify_manager import (
     get_active_or_default_device,
     format_track_info,
     get_oauth_redirect_uri,
+    annotate_devices_with_local,
+    read_default_device_id,
+    fetch_and_save_playlists,
 )
+from ..utils.config_manager import config_manager
+
+_API_DIR = Path(__file__).resolve().parent
 
 
-def create_app(animation_controller=None, spotify_manager=None, playlist_manager=None, audio_analyzer=None, midi_handler=None, reauth_callback=None):
+def create_app(
+    animation_controller=None,
+    spotify_manager=None,
+    playlist_manager=None,
+    audio_analyzer=None,
+    midi_handler=None,
+    reauth_callback=None,
+    user_action_manager=None,
+    action_executor=None,
+):
     """Create Flask application with API routes.
 
     Args:
@@ -20,11 +43,18 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
         audio_analyzer: Audio analyzer instance
         midi_handler: MIDI handler instance
         reauth_callback: Callable that performs Spotify re-authentication
+        user_action_manager: User 1/2 action bank manager
+        action_executor: Executes shell/URL/app/AppleScript actions
 
     Returns:
         Flask: Configured Flask application
     """
-    app = Flask(__name__, template_folder='templates')
+    app = Flask(
+        __name__,
+        template_folder=str(_API_DIR / 'templates'),
+        static_folder=str(_API_DIR / 'static'),
+        static_url_path='/static',
+    )
 
     # Disable HTTP request logging
     log = logging.getLogger('werkzeug')
@@ -37,6 +67,8 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
     app.playlist_manager = playlist_manager
     app.midi_handler = midi_handler
     app.reauth_callback = reauth_callback
+    app.user_action_manager = user_action_manager
+    app.action_executor = action_executor
 
     @app.route('/animation/<name>')
     def set_animation(name):
@@ -70,7 +102,7 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
         if app.spotify_manager and app.spotify_manager.spotify:
             try:
                 devices = app.spotify_manager.spotify.devices()
-                return jsonify(devices)
+                return jsonify(annotate_devices_with_local(devices))
             except Exception as e:
                 if app.spotify_manager.handle_api_error(e):
                     return jsonify({
@@ -186,17 +218,105 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
                 for key, value in secrets.items():
                     f.write(f"{key}={value}\n")
 
+            auto_launch_disabled = False
+            # Auto-launch Spotify is only valid when default device is this Mac
+            if config_manager.is_auto_launch_spotify_enabled():
+                still_local = False
+                if device_id and app.spotify_manager and app.spotify_manager.spotify:
+                    try:
+                        payload = annotate_devices_with_local(
+                            app.spotify_manager.spotify.devices()
+                        )
+                        for device in payload.get('devices') or []:
+                            if device.get('id') == device_id and device.get('is_local'):
+                                still_local = True
+                                break
+                    except Exception:
+                        still_local = False
+                if not still_local:
+                    config_manager.set_auto_launch_spotify(False)
+                    auto_launch_disabled = True
+
+            message = (
+                f'Default device set to {device_id}' if device_id else 'Default device cleared'
+            )
+            if auto_launch_disabled:
+                message += ' — Auto-launch Spotify turned off (default device is not this Mac)'
+
             return jsonify({
                 'success': True,
-                'message': f'Default device set to {device_id}' if device_id else 'Default device cleared'
+                'message': message,
+                'auto_launch_spotify': config_manager.is_auto_launch_spotify_enabled(),
+                'auto_launch_disabled': auto_launch_disabled,
             })
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    def _default_device_is_local_now():
+        """Check whether saved default device is currently visible and local."""
+        default_id = read_default_device_id()
+        if not default_id or not app.spotify_manager or not app.spotify_manager.spotify:
+            return False
+        try:
+            payload = annotate_devices_with_local(app.spotify_manager.spotify.devices())
+            for device in payload.get('devices') or []:
+                if device.get('id') == default_id:
+                    return bool(device.get('is_local'))
+        except Exception:
+            return False
+        return False
+
+    @app.route('/api/app-settings', methods=['GET'])
+    def get_app_settings():
+        """Application settings for the Settings panel."""
+        default_id = read_default_device_id()
+        default_is_local = _default_device_is_local_now()
+        return jsonify({
+            'auto_launch_spotify': config_manager.is_auto_launch_spotify_enabled(),
+            'can_enable_auto_launch': bool(default_id) and default_is_local,
+            'default_device_id': default_id,
+            'default_device_is_local': default_is_local,
+        })
+
+    @app.route('/api/app-settings', methods=['POST'])
+    def set_app_settings():
+        """Update application settings (e.g. auto-launch Spotify)."""
+        data = request.get_json() or {}
+
+        if 'auto_launch_spotify' in data:
+            enabled = bool(data.get('auto_launch_spotify'))
+            if enabled:
+                if not read_default_device_id():
+                    return jsonify({
+                        'error': 'Set a default device first',
+                        'auto_launch_spotify': False,
+                        'can_enable_auto_launch': False,
+                    }), 400
+                if not _default_device_is_local_now():
+                    return jsonify({
+                        'error': (
+                            'Auto-launch Spotify can only be enabled when the '
+                            'default device is this Mac (Computer device matching this machine).'
+                        ),
+                        'auto_launch_spotify': config_manager.is_auto_launch_spotify_enabled(),
+                        'can_enable_auto_launch': False,
+                    }), 400
+            config_manager.set_auto_launch_spotify(enabled)
+
+        default_id = read_default_device_id()
+        default_is_local = _default_device_is_local_now()
+        return jsonify({
+            'success': True,
+            'auto_launch_spotify': config_manager.is_auto_launch_spotify_enabled(),
+            'can_enable_auto_launch': bool(default_id) and default_is_local,
+            'default_device_id': default_id,
+            'default_device_is_local': default_is_local,
+        })
+
     @app.route('/')
     def index():
         """Render the main web interface."""
-        return render_template('index.html')
+        return render_template('index.html', app_version=__version__)
 
     @app.route('/mappings')
     def get_mappings():
@@ -214,12 +334,18 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
             'needs_reauth': False,
             'current_track': None,
             'is_playing': False,
-            'current_animation': None
+            'current_animation': None,
+            'launchpad_connected': False,
+            'launchpad_port': None,
         }
 
-        # Animation status
+        # Animation + Launchpad MIDI status (cached; health monitor probes periodically)
         if app.animation_controller:
             status['current_animation'] = app.animation_controller.current_animation
+            launchpad = getattr(app.animation_controller, 'launchpad', None)
+            if launchpad:
+                status['launchpad_connected'] = bool(launchpad.is_connected())
+                status['launchpad_port'] = launchpad.port_name if status['launchpad_connected'] else None
 
         # Spotify status
         if app.spotify_manager and app.spotify_manager.needs_reauth:
@@ -448,6 +574,102 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/api/playlists/fetch', methods=['POST'])
+    def fetch_playlists():
+        """Fetch playlists from Spotify and save to .playlists (CLI: p)."""
+        if not app.spotify_manager or not app.spotify_manager.ensure_ready():
+            return jsonify({
+                'error': 'Spotify authentication required',
+                'needs_reauth': bool(app.spotify_manager and app.spotify_manager.needs_reauth),
+            }), 401
+
+        try:
+            playlists = fetch_and_save_playlists(app.spotify_manager.spotify)
+            if playlists is None:
+                return jsonify({'error': 'Failed to fetch playlists from Spotify'}), 500
+            count = len(playlists)
+            return jsonify({
+                'success': True,
+                'message': f'Fetched and saved {count} playlists to .playlists',
+                'count': count,
+            })
+        except Exception as e:
+            if app.spotify_manager.handle_api_error(e):
+                return jsonify({'error': str(e), 'needs_reauth': True}), 401
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/mapping/generate', methods=['POST'])
+    def generate_mappings():
+        """Auto-generate playlist↔pad mappings (CLI: g)."""
+        if not app.spotify_manager or not app.spotify_manager.ensure_ready():
+            return jsonify({
+                'error': 'Spotify authentication required',
+                'needs_reauth': bool(app.spotify_manager and app.spotify_manager.needs_reauth),
+            }), 401
+        if not app.playlist_manager:
+            return jsonify({'error': 'Playlist manager not available'}), 503
+
+        data = request.get_json(silent=True) or {}
+        filter_type = (data.get('filter') or 'newest').lower()
+        if filter_type not in ('newest', 'popular', 'all'):
+            return jsonify({'error': 'filter must be newest, popular, or all'}), 400
+
+        mode = (data.get('mode') or 'fill').lower()
+        if mode not in ('fill', 'replace'):
+            return jsonify({'error': 'mode must be fill or replace'}), 400
+        replace_all = mode == 'replace'
+
+        try:
+            before = len(app.playlist_manager.mappings)
+            generate_playlist_mappings(
+                app.spotify_manager.spotify,
+                ANIMATIONS,
+                filter_type,
+                replace_all=replace_all,
+            )
+            app.playlist_manager.load_mappings()
+            after = len(app.playlist_manager.mappings)
+            if replace_all:
+                message = (
+                    f'Replaced all mappings ({filter_type}). '
+                    f'{before} → {after} pads mapped.'
+                )
+            else:
+                message = (
+                    f'Filled empty pads ({filter_type}). '
+                    f'Total pads mapped: {after} (+{after - before}).'
+                )
+            return jsonify({
+                'success': True,
+                'filter': filter_type,
+                'mode': mode,
+                'replace_all': replace_all,
+                'mappings_before': before,
+                'mappings_after': after,
+                'message': message,
+            })
+        except Exception as e:
+            if app.spotify_manager.handle_api_error(e):
+                return jsonify({'error': str(e), 'needs_reauth': True}), 401
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/mapping/randomize-animations', methods=['POST'])
+    def randomize_mapping_animations():
+        """Randomize animation for every mapped playlist (CLI: r)."""
+        if not app.playlist_manager:
+            return jsonify({'error': 'Playlist manager not available'}), 503
+
+        try:
+            randomize_animations(ANIMATIONS)
+            app.playlist_manager.load_mappings()
+            return jsonify({
+                'success': True,
+                'count': len(app.playlist_manager.mappings),
+                'message': f'Randomized animations for {len(app.playlist_manager.mappings)} mappings',
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/mapping/start', methods=['POST'])
     def start_mapping():
         """Start mapping mode for a playlist."""
@@ -562,6 +784,24 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/api/mapping/clear-all', methods=['POST'])
+    def clear_all_mappings():
+        """Clear every playlist mapping."""
+        if not app.playlist_manager:
+            return jsonify({'error': 'Playlist manager not available'}), 503
+
+        try:
+            cleared = len(app.playlist_manager.mappings)
+            app.playlist_manager.mappings.clear()
+            app.playlist_manager.save_mappings()
+            return jsonify({
+                'success': True,
+                'cleared': cleared,
+                'message': f'Cleared {cleared} mapping(s)',
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/mapping/update-animation', methods=['POST'])
     def update_mapping_animation():
         """Update animation for a playlist mapping."""
@@ -590,6 +830,232 @@ def create_app(animation_controller=None, spotify_manager=None, playlist_manager
             return jsonify({
                 'success': True,
                 'message': f'Animation updated for mapping at ({x},{y})'
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    def _normalize_user_action(data):
+        """Validate and normalize a user action payload from the web UI."""
+        if not data:
+            return None, 'Action payload is required'
+
+        action_type = data.get('type')
+        allowed = ('shell', 'open_url', 'http_request', 'app_toggle', 'applescript')
+        if action_type not in allowed:
+            return None, f'Invalid action type. Allowed: {", ".join(allowed)}'
+
+        action = {
+            'label': (data.get('label') or '').strip() or action_type,
+            'type': action_type,
+        }
+
+        if action_type == 'shell':
+            command = (data.get('command') or '').strip()
+            if not command:
+                return None, 'command is required for shell actions'
+            action['command'] = command
+
+        elif action_type == 'open_url':
+            url = (data.get('url') or '').strip()
+            if not url:
+                return None, 'url is required for open_url actions'
+            action['url'] = url
+
+        elif action_type == 'http_request':
+            url = (data.get('url') or '').strip()
+            if not url:
+                return None, 'url is required for http_request actions'
+            method = (data.get('method') or 'GET').upper()
+            headers = data.get('headers') or {}
+            if isinstance(headers, str):
+                headers = headers.strip()
+                if headers:
+                    import json as _json
+                    try:
+                        headers = _json.loads(headers)
+                    except Exception:
+                        return None, 'headers must be a JSON object'
+                else:
+                    headers = {}
+            if not isinstance(headers, dict):
+                return None, 'headers must be an object'
+            action['url'] = url
+            action['method'] = method
+            action['headers'] = headers
+            action['body'] = data.get('body') if data.get('body') is not None else ''
+
+        elif action_type == 'app_toggle':
+            app_name = (data.get('app_name') or '').strip()
+            if not app_name:
+                return None, 'app_name is required for app_toggle actions'
+            action['app_name'] = app_name
+            action['force_kill'] = bool(data.get('force_kill'))
+
+        elif action_type == 'applescript':
+            script = (data.get('script') or '').strip()
+            if not script:
+                return None, 'script is required for applescript actions'
+            action['script'] = script
+
+        return action, None
+
+    @app.route('/api/user-actions', methods=['GET'])
+    def get_user_actions():
+        """List User 1 / User 2 action banks."""
+        if not app.user_action_manager:
+            return jsonify({'error': 'User action manager not available'}), 503
+        profile = request.args.get('profile')
+        if profile:
+            if profile not in ('user1', 'user2'):
+                return jsonify({'error': 'profile must be user1 or user2'}), 400
+            return jsonify({'profile': profile, 'actions': app.user_action_manager.list_profile(profile)})
+        return jsonify(app.user_action_manager.list_all())
+
+    @app.route('/api/user-actions/running-apps', methods=['GET'])
+    def get_running_apps():
+        """List currently running macOS apps for app_toggle picker."""
+        from ..services.action_executor import ActionExecutor
+
+        include_background = request.args.get('background', '').lower() in ('1', 'true', 'yes')
+        try:
+            executor = app.action_executor or ActionExecutor()
+            apps = executor.list_running_apps(include_background=include_background)
+            return jsonify({
+                'apps': apps,
+                'count': len(apps),
+                'include_background': include_background,
+            })
+        except Exception as e:
+            return jsonify({'error': str(e), 'apps': []}), 500
+
+    @app.route('/api/user-actions/start', methods=['POST'])
+    def start_user_action_mapping():
+        """Start pad capture for a user action."""
+        if not app.midi_handler:
+            return jsonify({'error': 'MIDI handler not available'}), 503
+
+        data = request.get_json() or {}
+        profile = data.get('profile')
+        if profile not in ('user1', 'user2'):
+            return jsonify({'error': 'profile must be user1 or user2'}), 400
+
+        action, err = _normalize_user_action(data.get('action') or data)
+        if err:
+            return jsonify({'error': err}), 400
+
+        try:
+            success = app.midi_handler.start_user_action_mapping(profile, action)
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': f'Press a Launchpad button to map this action to {profile}.'
+                })
+            return jsonify({'error': 'Mapping mode already active or user actions unavailable'}), 400
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/user-actions/cancel', methods=['POST'])
+    def cancel_user_action_mapping():
+        """Cancel user-action mapping mode."""
+        if not app.midi_handler:
+            return jsonify({'error': 'MIDI handler not available'}), 503
+        try:
+            success = app.midi_handler.cancel_mapping_mode()
+            return jsonify({
+                'success': success,
+                'message': 'Mapping mode cancelled' if success else 'Mapping mode not active'
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/user-actions/status', methods=['GET'])
+    def get_user_action_status():
+        """Mapping status + last executed action message."""
+        if not app.midi_handler:
+            return jsonify({'error': 'MIDI handler not available'}), 503
+        try:
+            return jsonify(app.midi_handler.get_user_action_status())
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/user-actions/confirm-overwrite', methods=['POST'])
+    def confirm_user_action_overwrite():
+        if not app.midi_handler:
+            return jsonify({'error': 'MIDI handler not available'}), 503
+        try:
+            success = app.midi_handler.confirm_overwrite()
+            if success:
+                return jsonify({'success': True, 'message': 'User action overwritten successfully'})
+            return jsonify({'error': 'No pending confirmation'}), 400
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/user-actions/cancel-overwrite', methods=['POST'])
+    def cancel_user_action_overwrite():
+        if not app.midi_handler:
+            return jsonify({'error': 'MIDI handler not available'}), 503
+        try:
+            success = app.midi_handler.cancel_overwrite()
+            if success:
+                return jsonify({'success': True, 'message': 'Mapping cancelled'})
+            return jsonify({'error': 'No pending confirmation'}), 400
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/user-actions/delete', methods=['POST'])
+    def delete_user_action():
+        if not app.user_action_manager:
+            return jsonify({'error': 'User action manager not available'}), 503
+
+        data = request.get_json() or {}
+        profile = data.get('profile')
+        x = data.get('x')
+        y = data.get('y')
+        if profile not in ('user1', 'user2'):
+            return jsonify({'error': 'profile must be user1 or user2'}), 400
+        if x is None or y is None:
+            return jsonify({'error': 'Coordinates (x, y) are required'}), 400
+
+        try:
+            if app.user_action_manager.delete(profile, int(x), int(y)):
+                app.user_action_manager.save()
+                return jsonify({
+                    'success': True,
+                    'message': f'Action at ({x},{y}) deleted from {profile}'
+                })
+            return jsonify({'error': 'No action found at this coordinate'}), 404
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/user-actions/update', methods=['POST'])
+    def update_user_action():
+        """Update an existing pad action without re-mapping."""
+        if not app.user_action_manager:
+            return jsonify({'error': 'User action manager not available'}), 503
+
+        data = request.get_json() or {}
+        profile = data.get('profile')
+        x = data.get('x')
+        y = data.get('y')
+        if profile not in ('user1', 'user2'):
+            return jsonify({'error': 'profile must be user1 or user2'}), 400
+        if x is None or y is None:
+            return jsonify({'error': 'Coordinates (x, y) are required'}), 400
+
+        existing = app.user_action_manager.get(profile, int(x), int(y))
+        if not existing:
+            return jsonify({'error': 'No action found at this coordinate'}), 404
+
+        action, err = _normalize_user_action(data.get('action') or data)
+        if err:
+            return jsonify({'error': err}), 400
+
+        try:
+            app.user_action_manager.set(profile, int(x), int(y), action)
+            app.user_action_manager.save()
+            return jsonify({
+                'success': True,
+                'message': f'Action at ({x},{y}) updated for {profile}'
             })
         except Exception as e:
             return jsonify({'error': str(e)}), 500

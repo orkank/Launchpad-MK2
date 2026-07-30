@@ -71,17 +71,22 @@ def show_help():
 [yellow]Top Row (Control Buttons):[/yellow]
 • [cyan]Button (0,8)[/cyan]: 🔊 Volume Up        • [cyan]Button (1,8)[/cyan]: 🔉 Volume Down
 • [cyan]Button (2,8)[/cyan]: ⏮️ Previous Track   • [cyan]Button (3,8)[/cyan]: ⏭️ Next Track
-• [cyan]Button (4,8)[/cyan]: 🎯 Animation Select  • [cyan]Button (5,8)[/cyan]: ⏯️ Play/Pause
-• [cyan]Button (7,8)[/cyan]: 🎲 Random Playlist
+• [cyan]Button (4,8)[/cyan]: 🎯 Animation Select  • [cyan]Button (5,8)[/cyan]: 👤 User 1 Mode
+• [cyan]Button (6,8)[/cyan]: 👥 User 2 Mode       • [cyan]Button (7,8)[/cyan]: 🎲 Random Playlist
+• [cyan]Button (8,0)[/cyan]: ⏯️ Play/Pause (right column)
 
 [yellow]Main Grid (0,0 to 7,7):[/yellow]
-• Press any button to play the mapped playlist
-• Each button can trigger a specific playlist + animation combo
+• Default: play the mapped Spotify playlist
+• In User 1 / User 2 mode: run the mapped custom action
 
 [yellow]Animation Selection Mode:[/yellow]
 • Press [cyan]Session (4,8)[/cyan] to enter/exit animation selection
-• Grid buttons will show available animations
-• Press any grid button to select that animation""",
+• Grid buttons select available animations
+
+[yellow]User Action Modes:[/yellow]
+• Press [cyan]User 1 (5,8)[/cyan] or [cyan]User 2 (6,8)[/cyan] to enter/exit
+• Configure pad actions in the web panel (shell, URL, HTTP, app toggle, AppleScript)
+• Session / User1 / User2 are mutually exclusive; active mode pad stays lit""",
         title="🎮 Hardware Guide",
         style="bright_green",
         padding=(1, 2)

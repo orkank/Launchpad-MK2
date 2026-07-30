@@ -54,13 +54,15 @@ def show_loading_message():
     sys.stdout.flush()
 
 
-def generate_playlist_mappings(spotify, animations_dict, filter_type='newest'):
+def generate_playlist_mappings(spotify, animations_dict, filter_type='newest', replace_all=False):
     """Generate playlist mappings automatically from Spotify.
 
     Args:
         spotify: Spotify client instance
         animations_dict: Dictionary of available animations
         filter_type: 'newest', 'popular', or 'all'
+        replace_all: If True, clear existing mappings and remap the full grid.
+            If False, only fill free pads with unmapped playlists.
     """
     if spotify is None:
         print("Spotify not initialized")
@@ -73,14 +75,17 @@ def generate_playlist_mappings(spotify, animations_dict, filter_type='newest'):
     loading_thread.start()
 
     try:
-        # Load existing mappings
+        # Load existing mappings (ignored when replacing all)
         existing_mappings = {}
-        if os.path.exists('config/playlists.json'):
+        if not replace_all and os.path.exists('config/playlists.json'):
             with open('config/playlists.json', 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 existing_mappings = data.get('mappings', {})
 
-        print("\nLoading existing mappings...")
+        if replace_all:
+            print("\nReplace-all mode: clearing existing mappings...")
+        else:
+            print("\nLoading existing mappings...")
 
         # Get all used coordinates
         used_coords = set()
@@ -112,26 +117,30 @@ def generate_playlist_mappings(spotify, animations_dict, filter_type='newest'):
 
         while results:
             for item in results['items']:
-                # Skip playlists that are already mapped
                 playlist_name = item['name'].encode('utf-8').decode('utf-8')
-                if not any(mapping['name'] == playlist_name for mapping in existing_mappings.values()):
-                    playlist_info = {
-                        'name': playlist_name,
-                        'id': item['id'],
-                        'tracks': item['tracks']['total'],
-                        'owner': item['owner']['id'],
-                        'added_at': datetime.now(timezone.utc).isoformat(),
-                    }
+                # Skip already-mapped playlists unless replacing everything
+                if not replace_all and any(
+                    mapping['name'] == playlist_name for mapping in existing_mappings.values()
+                ):
+                    continue
 
-                    # Get additional details for filtering
-                    if filter_type == 'popular':
-                        try:
-                            playlist_details = spotify.playlist(item['id'])
-                            playlist_info['followers'] = playlist_details['followers']['total']
-                        except:
-                            playlist_info['followers'] = 0
+                playlist_info = {
+                    'name': playlist_name,
+                    'id': item['id'],
+                    'tracks': item['tracks']['total'],
+                    'owner': item['owner']['id'],
+                    'added_at': datetime.now(timezone.utc).isoformat(),
+                }
 
-                    playlists.append(playlist_info)
+                # Get additional details for filtering
+                if filter_type == 'popular':
+                    try:
+                        playlist_details = spotify.playlist(item['id'])
+                        playlist_info['followers'] = playlist_details['followers']['total']
+                    except Exception:
+                        playlist_info['followers'] = 0
+
+                playlists.append(playlist_info)
 
             if results['next']:
                 results = spotify.next(results)
@@ -144,7 +153,7 @@ def generate_playlist_mappings(spotify, animations_dict, filter_type='newest'):
         elif filter_type == 'popular':
             playlists.sort(key=lambda x: x.get('followers', 0), reverse=True)
 
-        # Map new playlists to available coordinates
+        # Map playlists to available coordinates
         new_mappings = {}
         for playlist in playlists:
             if not available_coords:
@@ -157,7 +166,7 @@ def generate_playlist_mappings(spotify, animations_dict, filter_type='newest'):
                 'animation': random.choice(available_animations)
             }
 
-        # Merge with existing mappings
+        # Merge with existing (empty when replace_all)
         merged_mappings = {**existing_mappings, **new_mappings}
 
         # Save updated mappings with proper UTF-8 encoding
@@ -169,7 +178,10 @@ def generate_playlist_mappings(spotify, animations_dict, filter_type='newest'):
         show_loading_message.is_loading = False
         loading_thread.join()
 
-        print(f"\nAdded {len(new_mappings)} new playlist mappings:")
+        if replace_all:
+            print(f"\nReplaced all mappings ({len(new_mappings)} playlists):")
+        else:
+            print(f"\nAdded {len(new_mappings)} new playlist mappings:")
         for coord, mapping in new_mappings.items():
             print(f"Coordinate {coord}: {mapping['name']} (Animation: {mapping['animation']})")
 

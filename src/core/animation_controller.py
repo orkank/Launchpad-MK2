@@ -9,22 +9,42 @@ from ..hardware.launchpad import LaunchpadManager
 class AnimationController:
     """Controls and manages LED animations."""
 
+    # Mode pad LEDs — locked colors animations cannot override
+    SESSION_PAD = (4, 8)
+    USER1_PAD = (5, 8)
+    USER2_PAD = (6, 8)
+    MODE_LEDS = {
+        'session': (SESSION_PAD, (0, 220, 255)),   # cyan
+        'user1': (USER1_PAD, (0, 255, 80)),        # green
+        'user2': (USER2_PAD, (255, 40, 180)),      # magenta
+    }
+    VALID_MODES = frozenset(MODE_LEDS.keys())
+
     def __init__(self, audio_analyzer=None, spotify_manager=None):
         self.launchpad = LaunchpadManager()
         self.current_animation = None
         self.last_animation = None
         self.should_run = True
         self.animation_thread = None
-        self.animation_select_mode = False
+        # Mutual-exclusive pad modes: None | 'session' | 'user1' | 'user2'
+        self.active_mode = None
         self.audio_analyzer = audio_analyzer
         self.spotify_manager = spotify_manager
         # When True, pad stays solid red (Spotify auth required)
         self.auth_lockout = False
 
+    @property
+    def animation_select_mode(self):
+        """True when Session (animation select) mode is active."""
+        return self.active_mode == 'session'
+
     def initialize(self):
-        """Initialize the animation controller."""
-        if not self.launchpad.initialize():
-            return False
+        """Initialize the animation controller.
+
+        Returns True even if the Launchpad is missing so the rest of the app
+        (web API, Spotify, CLI) can still start.
+        """
+        self.launchpad.initialize()
 
         # Start animation worker thread
         self.animation_thread = threading.Thread(target=self._animation_worker, daemon=True)
@@ -45,9 +65,11 @@ class AnimationController:
         if enabled:
             self.current_animation = None
             if self.launchpad.midi_out:
-                fill_all(self.launchpad.midi_out, 255, 0, 0)
+                fill_all(self.launchpad.midi_out, 255, 0, 0, force=True)
         elif was_enabled and self.launchpad.midi_out:
             clear_all(self.launchpad.midi_out)
+            # Re-assert mode indicator if a pad mode is still on
+            self._apply_mode_leds()
 
     def set_animation(self, animation_name):
         """Set the current animation.
@@ -93,10 +115,76 @@ class AnimationController:
         """
         return list(ANIMATIONS.keys())
 
+    def _clear_all_mode_leds(self):
+        """Unlock all mode indicator pads."""
+        from ..hardware.launchpad import unlock_pad
+
+        midi_out = self.launchpad.midi_out
+        for pad, _color in self.MODE_LEDS.values():
+            unlock_pad(midi_out, pad[0], pad[1], clear=True)
+
+    def _apply_mode_leds(self):
+        """Lock the active mode pad LED; unlock the others."""
+        from ..hardware.launchpad import lock_pad, unlock_pad
+
+        midi_out = self.launchpad.midi_out
+        for mode, (pad, color) in self.MODE_LEDS.items():
+            x, y = pad
+            if mode == self.active_mode:
+                lock_pad(midi_out, x, y, *color)
+            else:
+                unlock_pad(midi_out, x, y, clear=True)
+
+    def set_active_mode(self, mode):
+        """Set pad mode explicitly (None to clear).
+
+        Args:
+            mode: None | 'session' | 'user1' | 'user2'
+
+        Returns:
+            str|None: The resulting active_mode
+        """
+        if mode is not None and mode not in self.VALID_MODES:
+            raise ValueError(f"Invalid mode: {mode}")
+        self.active_mode = mode
+        self._apply_mode_leds()
+        return self.active_mode
+
+    def toggle_mode(self, mode):
+        """Toggle a pad mode. Activating one clears any other.
+
+        Args:
+            mode: 'session' | 'user1' | 'user2'
+
+        Returns:
+            bool: True if the mode is now active
+        """
+        if mode not in self.VALID_MODES:
+            raise ValueError(f"Invalid mode: {mode}")
+
+        if self.active_mode == mode:
+            self.set_active_mode(None)
+            return False
+
+        self.set_active_mode(mode)
+        return True
+
     def toggle_animation_select_mode(self):
-        """Toggle animation selection mode."""
-        self.animation_select_mode = not self.animation_select_mode
-        return self.animation_select_mode
+        """Toggle Session / animation selection mode."""
+        return self.toggle_mode('session')
+
+    def toggle_user_mode(self, profile):
+        """Toggle User 1 / User 2 action mode.
+
+        Args:
+            profile: 'user1' or 'user2'
+
+        Returns:
+            bool: True if that user mode is now active
+        """
+        if profile not in ('user1', 'user2'):
+            raise ValueError(f"Invalid user profile: {profile}")
+        return self.toggle_mode(profile)
 
     def select_animation_by_position(self, x, y):
         """Select animation by grid position.
@@ -128,7 +216,7 @@ class AnimationController:
                     # Keep the pad red even if button effects flash briefly
                     if self.launchpad.midi_out:
                         from ..hardware.launchpad import fill_all
-                        fill_all(self.launchpad.midi_out, 255, 0, 0)
+                        fill_all(self.launchpad.midi_out, 255, 0, 0, force=True)
                     last_animation = None
                     time.sleep(0.5)
                     continue

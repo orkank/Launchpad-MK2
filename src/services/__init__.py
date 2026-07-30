@@ -19,6 +19,8 @@ from .playlist_manager import (
 )
 
 from .audio_analyzer import AudioAnalyzer, create_audio_analyzer
+from .user_action_manager import UserActionManager
+from .action_executor import ActionExecutor
 
 __all__ = [
     'SpotifyManager',
@@ -31,5 +33,7 @@ __all__ = [
     'randomize_animations',
     'show_playlist_animation_preview',
     'AudioAnalyzer',
-    'create_audio_analyzer'
+    'create_audio_analyzer',
+    'UserActionManager',
+    'ActionExecutor',
 ]

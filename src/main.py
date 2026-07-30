@@ -1,6 +1,8 @@
 """Main application entry point for Launchpad MK2 Spotify Controller."""
 
 import argparse
+import select
+import sys
 import threading
 import time
 
@@ -20,6 +22,8 @@ from .services.playlist_manager import (
     generate_playlist_mappings,
     randomize_animations
 )
+from .services.user_action_manager import UserActionManager
+from .services.action_executor import ActionExecutor
 from .services.audio_analyzer import create_audio_analyzer
 from .utils.config_manager import config_manager
 from .animations import ANIMATIONS
@@ -27,6 +31,7 @@ from .api.flask_app import create_app
 from .utils.helpers import print_available_animations, print_available_playlists
 from .utils.help_system import show_help, show_quick_status
 from .utils.auth_alert import AuthAlertService, print_auth_warning
+from .utils.midi_health import MidiHealthMonitor
 
 
 class LaunchpadController:
@@ -35,6 +40,8 @@ class LaunchpadController:
     def __init__(self):
         self.spotify_manager = SpotifyManager()
         self.playlist_manager = PlaylistManager()
+        self.user_action_manager = UserActionManager()
+        self.action_executor = ActionExecutor()
         self.audio_analyzer = None
         self.animation_controller = None
         self.midi_handler = None
@@ -42,6 +49,7 @@ class LaunchpadController:
         self.flask_app = None
         self.flask_thread = None
         self.auth_alert = None
+        self.midi_health = None
 
     def initialize(self):
         """Initialize all components."""
@@ -74,29 +82,38 @@ class LaunchpadController:
         self.playlist_manager.load_mappings()
         print(f"Loaded {len(self.playlist_manager.mappings)} playlist mappings")
 
+        self.user_action_manager.load()
+        user_count = sum(len(b) for b in self.user_action_manager.banks.values())
+        print(f"Loaded {user_count} user action mappings")
+
         # Initialize animation controller with audio analyzer
         self.animation_controller = AnimationController(
             audio_analyzer=self.audio_analyzer,
             spotify_manager=self.spotify_manager
         )
-        if not self.animation_controller.initialize():
-            print("Failed to initialize animation controller")
-            return False
-        print("Animation controller initialized")
+        self.animation_controller.initialize()
+        if self.animation_controller.launchpad.is_connected():
+            print("Animation controller initialized (Launchpad connected)")
+        else:
+            print("Animation controller initialized (Launchpad offline — waiting for MIDI)")
 
         # Set up MIDI handler
         self.midi_handler = MidiHandler(
             self.animation_controller,
             self.spotify_manager,
-            self.playlist_manager
+            self.playlist_manager,
+            user_action_manager=self.user_action_manager,
+            action_executor=self.action_executor,
         )
 
-        # Set MIDI callback
+        # Set MIDI callback when ports are available (health monitor re-attaches later)
         if self.animation_controller.launchpad.midi_in:
             self.animation_controller.launchpad.midi_in.set_callback(
                 self.midi_handler.on_midi_message
             )
             print("MIDI handler initialized")
+        else:
+            print("MIDI handler ready (callback will attach when Launchpad connects)")
 
         # Start status monitor only when auth is healthy
         if self.spotify_manager.spotify and not self.spotify_manager.needs_reauth:
@@ -171,7 +188,9 @@ class LaunchpadController:
             self.playlist_manager,
             self.audio_analyzer,
             self.midi_handler,
-            reauth_callback=self.reauthenticate_spotify
+            reauth_callback=self.reauthenticate_spotify,
+            user_action_manager=self.user_action_manager,
+            action_executor=self.action_executor,
         )
         self.flask_thread = threading.Thread(
             target=lambda: self.flask_app.run(
@@ -186,6 +205,27 @@ class LaunchpadController:
         self.flask_thread.start()
         print(f"Flask API started on http://{host}:{port}")
 
+    def _read_cli_line(self, timeout=3.0):
+        """Read a CLI line with timeout so MIDI health can pump on the main thread.
+
+        Returns:
+            str|None: Command line without trailing newline, or None on timeout
+        """
+        if not sys.stdin or not sys.stdin.isatty():
+            # Non-interactive (launchd / pipe): still pump MIDI, then block briefly
+            if self.midi_health:
+                self.midi_health.pump()
+            time.sleep(timeout)
+            return None
+
+        ready, _, _ = select.select([sys.stdin], [], [], timeout)
+        if not ready:
+            return None
+        line = sys.stdin.readline()
+        if line == '':
+            raise EOFError
+        return line.lower().strip()
+
     def run_interactive(self):
         """Run the interactive command line interface."""
         # Show initial status
@@ -197,7 +237,13 @@ class LaunchpadController:
 
         while True:
             try:
-                cmd = input().lower().strip()
+                # CoreMIDI hotplug only works reliably when open/scan runs here
+                if self.midi_health:
+                    self.midi_health.pump()
+
+                cmd = self._read_cli_line(timeout=3.0)
+                if cmd is None:
+                    continue
 
                 if cmd == 'h':
                     show_help()
@@ -398,6 +444,9 @@ class LaunchpadController:
         """Shutdown all components."""
         print("Shutting down...")
 
+        if self.midi_health:
+            self.midi_health.stop()
+
         if self.auth_alert:
             self.auth_alert.stop()
 
@@ -444,6 +493,14 @@ def main():
             interval=5.0,
         )
         controller.auth_alert.start()
+
+        # MIDI health: pump() runs on the main CLI loop (CoreMIDI + hotplug)
+        controller.midi_health = MidiHealthMonitor(
+            controller.animation_controller,
+            midi_handler=controller.midi_handler,
+            interval=3.0,
+        )
+        controller.midi_health.start()
 
         # TODO: Implement Homebridge server if requested
         if args.homebridge:

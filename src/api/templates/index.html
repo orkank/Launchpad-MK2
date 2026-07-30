@@ -4,623 +4,599 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Launchpad MK2 Controller</title>
-    <style>
-        :root {
-            --bg0: #0e1116;
-            --bg1: #1a222d;
-            --ink: #f2f4f7;
-            --muted: #9aa6b2;
-            --ok: #3ecf8e;
-            --bad: #f07178;
-            --accent: #7eb8ff;
-            --warn: #e6c07b;
-            --panel: rgba(16, 20, 28, 0.72);
-            --panel-solid: #141a22;
-            --line: rgba(255, 255, 255, 0.08);
-            --line-strong: rgba(255, 255, 255, 0.14);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: "Avenir Next", "Segoe UI", sans-serif;
-            color: var(--ink);
-            min-height: 100vh;
-            padding: 28px 20px 48px;
-            background:
-                radial-gradient(ellipse 80% 60% at 20% 10%, rgba(126, 184, 255, 0.18), transparent 55%),
-                radial-gradient(ellipse 70% 50% at 90% 90%, rgba(62, 207, 142, 0.12), transparent 50%),
-                linear-gradient(160deg, var(--bg0), var(--bg1));
-        }
-
-        .container {
-            max-width: 1180px;
-            margin: 0 auto;
-            animation: rise 420ms ease-out;
-        }
-
-        @keyframes rise {
-            from { opacity: 0; transform: translateY(12px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 36px;
-        }
-
-        .header h1 {
-            font-size: clamp(1.8rem, 4vw, 2.4rem);
-            font-weight: 650;
-            letter-spacing: -0.03em;
-            margin-bottom: 8px;
-        }
-
-        .header p {
-            color: var(--muted);
-            font-size: 1.05rem;
-        }
-
-        .main-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 18px;
-            margin-bottom: 18px;
-        }
-
-        .card {
-            background: var(--panel);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--line);
-            padding: 24px;
-        }
-
-        .card h2 {
-            margin-bottom: 18px;
-            color: var(--ink);
-            font-size: 1.05rem;
-            font-weight: 650;
-            letter-spacing: -0.02em;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-        }
-
-        .card > p {
-            color: var(--muted);
-            font-size: 0.92rem;
-            line-height: 1.45;
-            margin-bottom: 16px;
-        }
-
-        .now-playing {
-            text-align: center;
-        }
-
-        .track-info {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--line);
-            padding: 22px 18px;
-            margin: 8px 0 4px;
-            min-height: 108px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-
-        .track-name {
-            font-size: 1.25rem;
-            font-weight: 650;
-            letter-spacing: -0.02em;
-            margin-bottom: 6px;
-        }
-
-        .track-artist {
-            font-size: 0.98rem;
-            color: var(--muted);
-        }
-
-        .no-track {
-            color: var(--muted);
-        }
-
-        .controls {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 18px;
-        }
-
-        .btn {
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid var(--line-strong);
-            border-radius: 0;
-            padding: 11px 16px;
-            color: var(--ink);
-            cursor: pointer;
-            font-size: 0.92rem;
-            font-family: inherit;
-            transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn:hover {
-            background: rgba(255, 255, 255, 0.12);
-            border-color: rgba(255, 255, 255, 0.28);
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .btn-primary {
-            background: rgba(126, 184, 255, 0.2);
-            border-color: rgba(126, 184, 255, 0.45);
-            color: var(--accent);
-        }
-
-        .btn-primary:hover {
-            background: rgba(126, 184, 255, 0.3);
-            border-color: rgba(126, 184, 255, 0.65);
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-            text-align: left;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            font-size: 0.88rem;
-            color: var(--muted);
-        }
-
-        .form-group select,
-        .form-group input {
-            width: 100%;
-            padding: 12px 12px;
-            border: 1px solid var(--line-strong);
-            border-radius: 0;
-            background: rgba(255, 255, 255, 0.04);
-            color: var(--ink);
-            font-size: 0.95rem;
-            font-family: inherit;
-        }
-
-        .form-group select:focus,
-        .form-group input:focus {
-            outline: none;
-            border-color: rgba(126, 184, 255, 0.55);
-            background: rgba(255, 255, 255, 0.07);
-        }
-
-        .form-group select option {
-            background: var(--panel-solid);
-            color: var(--ink);
-        }
-
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 18px;
-            margin-top: 18px;
-        }
-
-        .status-card {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            padding: 20px;
-            text-align: center;
-        }
-
-        .status-card .status-value {
-            font-size: 1.55rem;
-            font-weight: 650;
-            letter-spacing: -0.02em;
-            margin: 8px 0;
-            color: var(--ink);
-        }
-
-        .status-card .status-label {
-            color: var(--muted);
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-
-        .mapping-preview {
-            max-height: 320px;
-            overflow-y: auto;
-            background: rgba(0, 0, 0, 0.22);
-            border: 1px solid var(--line);
-            padding: 12px 14px;
-        }
-
-        .mapping-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid var(--line);
-            gap: 10px;
-        }
-
-        .mapping-item:last-child {
-            border-bottom: none;
-        }
-
-        .mapping-position {
-            background: rgba(126, 184, 255, 0.12);
-            border: 1px solid rgba(126, 184, 255, 0.28);
-            color: var(--accent);
-            padding: 4px 8px;
-            font-size: 0.78rem;
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-            flex-shrink: 0;
-        }
-
-        .mapping-playlist {
-            flex: 1;
-            margin: 0 10px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            min-width: 0;
-            color: var(--ink);
-        }
-
-        .mapping-animation {
-            background: rgba(62, 207, 142, 0.12);
-            border: 1px solid rgba(62, 207, 142, 0.3);
-            color: var(--ok);
-            padding: 4px 8px;
-            font-size: 0.78rem;
-        }
-
-        .mapping-animation-select {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--line-strong);
-            border-radius: 0;
-            padding: 6px 8px;
-            color: var(--ink);
-            font-size: 0.85em;
-            min-width: 120px;
-            cursor: pointer;
-            font-family: inherit;
-        }
-
-        .mapping-animation-select:focus {
-            outline: none;
-            border-color: rgba(126, 184, 255, 0.55);
-            background: rgba(255, 255, 255, 0.07);
-        }
-
-        .mapping-animation-select option {
-            background: var(--panel-solid);
-            color: var(--ink);
-        }
-
-        .loading {
-            opacity: 0.5;
-            pointer-events: none;
-        }
-
-        .audio-info {
-            margin-top: 16px;
-            padding: 14px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--line);
-        }
-
-        .audio-info h3 {
-            font-size: 0.92rem;
-            font-weight: 650;
-            margin-bottom: 10px;
-            color: var(--ink);
-        }
-
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 8px;
-            margin-top: 10px;
-        }
-
-        .feature-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 10px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--line);
-        }
-
-        .feature-label {
-            font-weight: 600;
-            color: var(--muted);
-            font-size: 0.85rem;
-        }
-
-        .feature-value {
-            color: var(--accent);
-            font-weight: 650;
-            font-size: 0.9rem;
-        }
-
-        .status-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            padding: 8px 0;
-            border-bottom: 1px solid var(--line);
-        }
-
-        .status-item .status-label {
-            font-weight: 600;
-            color: var(--muted);
-            font-size: 0.9rem;
-        }
-
-        .status-item .status-value {
-            color: var(--accent);
-            font-weight: 650;
-            font-size: 0.95rem;
-        }
-
-        .success-message,
-        .error-message,
-        .warning-message,
-        .info-message {
-            padding: 10px 12px;
-            margin: 10px 0;
-            text-align: center;
-            font-size: 0.9rem;
-            border: 1px solid transparent;
-        }
-
-        .success-message {
-            background: rgba(62, 207, 142, 0.12);
-            border-color: rgba(62, 207, 142, 0.35);
-            color: var(--ok);
-        }
-
-        .error-message {
-            background: rgba(240, 113, 120, 0.12);
-            border-color: rgba(240, 113, 120, 0.35);
-            color: var(--bad);
-        }
-
-        .warning-message,
-        .info-message {
-            background: rgba(230, 192, 123, 0.12);
-            border-color: rgba(230, 192, 123, 0.35);
-            color: var(--warn);
-        }
-
-        .auth-warning {
-            display: none;
-            margin-top: 14px;
-            padding: 12px;
-            text-align: center;
-            background: rgba(240, 113, 120, 0.12);
-            border: 1px solid rgba(240, 113, 120, 0.35);
-            color: var(--bad);
-            font-size: 0.9rem;
-            line-height: 1.4;
-        }
-
-        .mapping-active {
-            background: rgba(62, 207, 142, 0.1) !important;
-            border-color: rgba(62, 207, 142, 0.45) !important;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.72; }
-        }
-
-        .mapping-item-actions {
-            display: flex;
-            gap: 5px;
-        }
-
-        .btn-small {
-            padding: 4px 8px;
-            font-size: 0.8em;
-        }
-
-        .btn-danger {
-            background: rgba(240, 113, 120, 0.12);
-            border-color: rgba(240, 113, 120, 0.35);
-            color: var(--bad);
-        }
-
-        .btn-danger:hover {
-            background: rgba(240, 113, 120, 0.22);
-        }
-
-        .card-span {
-            margin-top: 18px;
-        }
-
-        .card-span h2 .btn {
-            float: none;
-        }
-
-        @media (max-width: 768px) {
-            .main-content,
-            .status-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .controls {
-                flex-wrap: wrap;
-            }
-        }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Launchpad MK2</h1>
-            <p>Spotify playback and LED animation control</p>
-        </div>
-
-        <div class="main-content">
-            <!-- Now Playing Section -->
-            <div class="card now-playing">
-                <h2>🎵 Now Playing</h2>
-                <div class="track-info" id="trackInfo">
-                    <div class="no-track">No track playing</div>
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileNav()" hidden></div>
+    <div class="app-shell">
+        <aside class="sidebar" id="sidebar" aria-label="Sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-icon" aria-hidden="true">
+                    <i data-lucide="music-2"></i>
                 </div>
-                <div class="controls">
-                    <button class="btn" onclick="previousTrack()">⏮️ Previous</button>
-                    <button class="btn btn-primary" onclick="togglePlayback()" id="playBtn">▶️ Play</button>
-                    <button class="btn" onclick="nextTrack()">⏭️ Next</button>
-                    <button class="btn" onclick="reauthSpotify()" id="reauthBtn" title="Clear token and sign in again">🔐 Re-auth</button>
+                <div class="brand-text">
+                    <h1>Launchpad MK2</h1>
+                    <p>Spotify &amp; LED Controller</p>
                 </div>
-                <div id="authWarning" class="auth-warning">
-                    Spotify login expired. Click Re-auth (browser will open on the host machine).
-                </div>
+                <button type="button" class="icon-btn sidebar-close" onclick="closeMobileNav()" aria-label="Close menu">
+                    <i data-lucide="x"></i>
+                </button>
             </div>
 
-            <!-- Animation Control -->
-            <div class="card">
-                <h2>✨ Animation Control</h2>
-                <div class="form-group">
-                    <label for="animationSelect">Select Animation:</label>
-                    <select id="animationSelect">
-                        <option value="">Loading animations...</option>
-                    </select>
-                </div>
-                <div class="controls">
-                    <button class="btn btn-primary" onclick="startAnimation()">🎨 Start</button>
-                    <button class="btn" onclick="stopAnimation()">⏹️ Stop</button>
-                </div>
-                <div id="animationStatus"></div>
-            </div>
+            <nav class="sidebar-nav" aria-label="Main">
+                <button type="button" class="nav-item active" data-nav="dashboard" onclick="showSection('dashboard')">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </button>
+                <button type="button" class="nav-item" data-nav="playlists" onclick="showSection('playlists')">
+                    <i data-lucide="list-music"></i>
+                    <span>Playlists</span>
+                </button>
+                <button type="button" class="nav-item" data-nav="animations" onclick="showSection('animations')">
+                    <i data-lucide="sparkles"></i>
+                    <span>Animations</span>
+                </button>
+                <button type="button" class="nav-item" data-nav="user-actions" onclick="showSection('user-actions')">
+                    <i data-lucide="zap"></i>
+                    <span>User Actions</span>
+                </button>
+                <button type="button" class="nav-item" data-nav="settings" onclick="showSection('settings')">
+                    <i data-lucide="settings"></i>
+                    <span>Settings</span>
+                </button>
+            </nav>
 
-            <!-- Audio Features Control -->
-            <div class="card">
-                <h2>🎛️ Audio Features</h2>
-                <div class="status-item">
-                    <span class="status-label">Status:</span>
-                    <span id="audio-features-status" class="status-value">Checking...</span>
-                </div>
-                <div class="controls">
-                    <button class="btn" onclick="toggleAudioFeatures()" id="audio-toggle-btn">
-                        🎵 Enable
-                    </button>
-                    <button class="btn" onclick="pauseResumeAudioFeatures()" id="audio-pause-btn">
-                        ⏸️ Pause
-                    </button>
-                </div>
-
-                <div id="audio-features-info" class="audio-info" style="display: none;">
-                    <h3>📊 Current Track Features</h3>
-                    <div class="feature-grid">
-                        <div class="feature-item">
-                            <span class="feature-label">Energy:</span>
-                            <span id="feature-energy" class="feature-value">-</span>
-                        </div>
-                        <div class="feature-item">
-                            <span class="feature-label">Tempo:</span>
-                            <span id="feature-tempo" class="feature-value">-</span>
-                        </div>
-                        <div class="feature-item">
-                            <span class="feature-label">Danceability:</span>
-                            <span id="feature-danceability" class="feature-value">-</span>
-                        </div>
-                        <div class="feature-item">
-                            <span class="feature-label">Valence:</span>
-                            <span id="feature-valence" class="feature-value">-</span>
-                        </div>
-                        <div class="feature-item">
-                            <span class="feature-label">Suggested:</span>
-                            <span id="feature-suggested" class="feature-value">-</span>
+            <div class="sidebar-footer">
+                <div class="spotify-status-card">
+                    <div class="icon-wrap">
+                        <i data-lucide="disc-3"></i>
+                    </div>
+                    <div class="spotify-status-meta">
+                        <div class="label">Spotify Status</div>
+                        <div class="value">
+                            <span class="dot" id="sidebarSpotifyDot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block;"></span>
+                            <span id="sidebarSpotifyLabel">Checking…</span>
                         </div>
                     </div>
                 </div>
+                <div class="sidebar-meta">
+                    <span class="version">v{{ app_version }}</span>
+                    <button type="button" class="icon-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+                        <i data-lucide="sun" id="themeIcon"></i>
+                    </button>
+                </div>
             </div>
+        </aside>
 
-            <!-- Playlist Mapping Editor -->
-            <div class="card">
-                <h2>🎯 Playlist Mapping Editor</h2>
-                <p>Select a playlist and press a button on your Launchpad to create a mapping.</p>
-                <div class="form-group">
-                    <label for="playlistSelect">Select Playlist:</label>
-                    <select id="playlistSelect">
-                        <option value="">Loading playlists...</option>
-                    </select>
+        <div class="main-column">
+            <header class="top-toolbar">
+                <div class="toolbar-left">
+                    <button type="button" class="icon-btn menu-toggle" id="menuToggle" onclick="toggleMobileNav()" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+                        <i data-lucide="menu"></i>
+                    </button>
+                    <div class="page-heading">
+                        <h2 id="pageTitle">Dashboard</h2>
+                        <p id="pageSubtitle">Overview of your Launchpad MK2.</p>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="mappingAnimationSelect">Select Animation (Optional):</label>
-                    <select id="mappingAnimationSelect">
-                        <option value="">None</option>
-                    </select>
+                <div class="toolbar-actions">
+                    <div class="device-chip" id="toolbarLaunchpadChip" title="Launchpad MIDI connection">
+                        <span class="dot" id="toolbarLaunchpadDot"></span>
+                        <div class="meta">
+                            <div class="name" id="toolbarLaunchpadName">Launchpad</div>
+                            <div class="sub" id="toolbarLaunchpadSub">Checking…</div>
+                        </div>
+                    </div>
+                    <div class="device-chip" title="Active / default Spotify device">
+                        <span class="dot" id="toolbarDeviceDot"></span>
+                        <div class="meta">
+                            <div class="name" id="toolbarDeviceName">No device</div>
+                            <div class="sub" id="toolbarDeviceSub">Device</div>
+                        </div>
+                    </div>
+                    <button type="button" class="icon-btn toolbar-desktop-only" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+                        <i data-lucide="moon"></i>
+                    </button>
+                    <button type="button" class="icon-btn toolbar-desktop-only" title="Notifications" aria-label="Notifications" onclick="showToast('No notifications')">
+                        <i data-lucide="bell"></i>
+                    </button>
+                    <button type="button" class="icon-btn toolbar-desktop-only" title="Settings" aria-label="Settings" onclick="showSection('settings')">
+                        <i data-lucide="settings"></i>
+                    </button>
                 </div>
-                <div class="controls">
-                    <button class="btn btn-primary" onclick="startMapping()" id="startMappingBtn">🎯 Map Button</button>
-                    <button class="btn" onclick="cancelMapping()" id="cancelMappingBtn" style="display: none;">❌ Cancel</button>
-                </div>
-                <div id="mappingStatus" style="margin-top: 15px;"></div>
-            </div>
+            </header>
 
-            <!-- Default Device Selection -->
-            <div class="card">
-                <h2>🎧 Default Spotify Device</h2>
-                <p>Set your default Spotify device. This device will be used when no active device is found.</p>
-                <div class="form-group">
-                    <label for="defaultDeviceSelect">Select Default Device:</label>
-                    <select id="defaultDeviceSelect">
-                        <option value="">Loading devices...</option>
-                    </select>
-                </div>
-                <div class="controls">
-                    <button class="btn btn-primary" onclick="saveDefaultDevice()">💾 Save Default Device</button>
-                    <button class="btn" onclick="clearDefaultDevice()">🗑️ Clear</button>
-                </div>
-                <div id="deviceStatus" style="margin-top: 15px;"></div>
-            </div>
-        </div>
+            <main class="content-area">
+                <!-- Dashboard -->
+                <section class="section active" id="section-dashboard" data-section="dashboard">
+                    <div id="launchpadWarning" class="midi-warning" hidden>
+                        <strong>Launchpad MIDI disconnected.</strong>
+                        <span> Check the USB cable and Audio MIDI Setup. The app will keep trying to reconnect.</span>
+                    </div>
+                    <div class="dash-top">
+                        <div class="card hero-card now-playing">
+                            <div class="spotify-badge" id="heroSpotifyBadge">
+                                <span class="dot"></span>
+                                <span id="heroSpotifyText">Spotify</span>
+                            </div>
+                            <div class="hero-body">
+                                <div class="album-art" aria-hidden="true">
+                                    <i data-lucide="music"></i>
+                                </div>
+                                <div class="track-meta">
+                                    <div class="track-info" id="trackInfo">
+                                        <div class="no-track">No track playing</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="hero-controls controls">
+                                <button class="btn" type="button" onclick="previousTrack()" title="Previous">
+                                    <i data-lucide="skip-back"></i>
+                                    <span>Previous</span>
+                                </button>
+                                <button class="btn btn-primary" type="button" onclick="togglePlayback()" id="playBtn">
+                                    <i data-lucide="play"></i>
+                                    <span>Play</span>
+                                </button>
+                                <button class="btn" type="button" onclick="nextTrack()" title="Next">
+                                    <i data-lucide="skip-forward"></i>
+                                    <span>Next</span>
+                                </button>
+                                <button class="btn" type="button" onclick="reauthSpotify()" id="reauthBtn" title="Clear token and sign in again">
+                                    <i data-lucide="key-round"></i>
+                                    <span>Re-auth</span>
+                                </button>
+                            </div>
+                            <div id="authWarning" class="auth-warning">
+                                Spotify login expired. Click Re-auth (browser will open on the host machine).
+                            </div>
+                        </div>
 
-        <!-- Status Cards -->
-        <div class="status-grid">
-            <div class="status-card">
-                <div class="status-value" id="mappedCount">-</div>
-                <div class="status-label">🎵 Mapped Playlists</div>
-            </div>
-            <div class="status-card">
-                <div class="status-value" id="currentAnimation">None</div>
-                <div class="status-label">✨ Current Animation</div>
-            </div>
-            <div class="status-card">
-                <div class="status-value" id="spotifyStatus">❌</div>
-                <div class="status-label">🎧 Spotify Status</div>
-            </div>
-        </div>
+                        <div class="card summary-card">
+                            <div class="card-title">Current Animation</div>
+                            <div class="anim-preview is-idle" id="animPreview"></div>
+                            <div class="summary-meta">
+                                <div class="name" id="currentAnimation">None</div>
+                                <div class="status-pill" id="animationRunningPill">
+                                    <span class="dot"></span>
+                                    <span id="animationRunningLabel">Idle</span>
+                                </div>
+                            </div>
+                            <div class="spacer"></div>
+                            <button type="button" class="btn btn-primary btn-block" onclick="showSection('animations')">
+                                Change Animation
+                            </button>
+                        </div>
 
-        <!-- Playlist Mappings Preview -->
-        <div class="card card-span">
-            <h2>
-                <span>Playlist Mappings</span>
-                <button class="btn btn-small" onclick="refreshMappings()">Refresh</button>
-            </h2>
-            <div class="mapping-preview" id="mappingPreview">
-                <div style="text-align: center; color: var(--muted); padding: 18px 0;">Loading mappings...</div>
-            </div>
+                        <div class="card summary-card">
+                            <div class="card-title">Device Status</div>
+                            <div class="device-summary-icon">
+                                <i data-lucide="laptop"></i>
+                            </div>
+                            <div class="summary-meta" style="flex-direction:column;align-items:flex-start;">
+                                <div class="name" id="dashDeviceName">No device selected</div>
+                                <div class="status-pill" id="dashDevicePill">
+                                    <span class="dot"></span>
+                                    <span id="dashDeviceLabel">Offline</span>
+                                </div>
+                            </div>
+                            <p class="card-desc" style="margin:0;">Connected via Spotify Connect</p>
+                            <div class="spacer"></div>
+                            <button type="button" class="btn btn-primary btn-block" onclick="showSection('settings')">
+                                Change Device
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="stats-row">
+                        <div class="stat-card">
+                            <div class="stat-icon purple">
+                                <i data-lucide="list-music"></i>
+                            </div>
+                            <div>
+                                <div class="stat-value" id="mappedCount">-</div>
+                                <div class="stat-label">Mapped Playlists</div>
+                                <div class="stat-hint">Pad → playlist links</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon orange">
+                                <i data-lucide="sparkles"></i>
+                            </div>
+                            <div>
+                                <div class="stat-value" id="animationCount">-</div>
+                                <div class="stat-label">Animations</div>
+                                <div class="stat-hint">Available</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon green">
+                                <i data-lucide="zap"></i>
+                            </div>
+                            <div>
+                                <div class="stat-value" id="userActionCount">-</div>
+                                <div class="stat-label">User Actions</div>
+                                <div class="stat-hint">Configured</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon blue">
+                                <i data-lucide="radio"></i>
+                            </div>
+                            <div>
+                                <div class="stat-value" id="spotifyStatus">—</div>
+                                <div class="stat-label">Spotify</div>
+                                <div class="stat-hint" id="spotifyStatusHint">Status</div>
+                            </div>
+                        </div>
+                        <div class="stat-card" id="launchpadStatCard">
+                            <div class="stat-icon teal">
+                                <i data-lucide="keyboard"></i>
+                            </div>
+                            <div>
+                                <div class="stat-value" id="launchpadStatus">—</div>
+                                <div class="stat-label">Launchpad</div>
+                                <div class="stat-hint" id="launchpadStatusHint">MIDI</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dash-bottom">
+                        <div class="card list-panel">
+                            <div class="card-title">
+                                <span>Recent Playlist Mappings</span>
+                                <button type="button" class="btn btn-small" onclick="refreshMappings()">Refresh</button>
+                            </div>
+                            <div class="list-body mapping-preview" id="mappingDashPreview">
+                                <div class="list-empty">Loading mappings…</div>
+                            </div>
+                            <div class="panel-actions">
+                                <button type="button" class="btn btn-primary btn-block" onclick="showSection('playlists')">
+                                    Manage Playlists
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card list-panel">
+                            <div class="card-title">
+                                <span>User Actions</span>
+                                <button type="button" class="btn btn-small" onclick="refreshUserActions()">Refresh</button>
+                            </div>
+                            <div class="list-body mapping-preview" id="userActionDashPreview">
+                                <div class="list-empty">Loading user actions…</div>
+                            </div>
+                            <div class="panel-actions">
+                                <button type="button" class="btn btn-primary btn-block" onclick="showSection('user-actions')">
+                                    Manage Actions
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card list-panel">
+                            <div class="card-title">Quick Actions</div>
+                            <div class="quick-grid">
+                                <button type="button" class="quick-action" onclick="quickTestAnimation()">
+                                    <span class="qa-icon"><i data-lucide="play"></i></span>
+                                    <span class="qa-title">Test Animation</span>
+                                    <span class="qa-desc">Open animation picker</span>
+                                </button>
+                                <button type="button" class="quick-action" onclick="reauthSpotify()">
+                                    <span class="qa-icon"><i data-lucide="refresh-cw"></i></span>
+                                    <span class="qa-title">Spotify Reconnect</span>
+                                    <span class="qa-desc">Re-authenticate Spotify</span>
+                                </button>
+                                <button type="button" class="quick-action" onclick="syncDevice()">
+                                    <span class="qa-icon"><i data-lucide="monitor-smartphone"></i></span>
+                                    <span class="qa-title">Sync Device</span>
+                                    <span class="qa-desc">Reload devices &amp; status</span>
+                                </button>
+                                <button type="button" class="quick-action" onclick="stopAnimation()">
+                                    <span class="qa-icon"><i data-lucide="square"></i></span>
+                                    <span class="qa-title">Stop Animation</span>
+                                    <span class="qa-desc">Halt current LED pattern</span>
+                                </button>
+                                <button type="button" class="quick-action" onclick="showSection('playlists'); fetchPlaylistsFromSpotify();">
+                                    <span class="qa-icon"><i data-lucide="download"></i></span>
+                                    <span class="qa-title">Fetch Playlists</span>
+                                    <span class="qa-desc">Save Spotify lists to .playlists</span>
+                                </button>
+                                <button type="button" class="quick-action" onclick="showSection('playlists')">
+                                    <span class="qa-icon"><i data-lucide="wand-2"></i></span>
+                                    <span class="qa-title">Playlist Tools</span>
+                                    <span class="qa-desc">Generate maps &amp; randomize</span>
+                                </button>
+                            </div>
+                            <button type="button" class="btn btn-block" onclick="refreshMappings()">
+                                <i data-lucide="folder-sync"></i>
+                                <span>Refresh Mappings</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Playlists -->
+                <section class="section" id="section-playlists" data-section="playlists">
+                    <div class="page-stack">
+                        <div class="card">
+                            <div class="card-title">Playlist Tools</div>
+                            <p class="card-desc">Fetch Spotify playlists to disk, auto-fill free pads with mappings, or shuffle animations on existing maps.</p>
+                            <div class="controls" style="flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="btn btn-primary" type="button" id="fetchPlaylistsBtn" onclick="fetchPlaylistsFromSpotify()">
+                                    <i data-lucide="download"></i>
+                                    <span>Fetch Playlists</span>
+                                </button>
+                                <button class="btn" type="button" id="randomizeAnimationsBtn" onclick="randomizeMappingAnimations()">
+                                    <i data-lucide="shuffle"></i>
+                                    <span>Randomize Animations</span>
+                                </button>
+                            </div>
+                            <div class="form-group" style="margin-top: 1rem;">
+                                <label for="generateModeSelect">Generate Mode</label>
+                                <select id="generateModeSelect">
+                                    <option value="fill">Fill empty pads only</option>
+                                    <option value="replace">Replace all mappings</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="generateFilterSelect">Playlist Filter</label>
+                                <select id="generateFilterSelect">
+                                    <option value="newest">Newest playlists</option>
+                                    <option value="popular">Most popular</option>
+                                    <option value="all">All playlists</option>
+                                </select>
+                            </div>
+                            <div class="controls">
+                                <button class="btn btn-primary" type="button" id="generateMappingsBtn" onclick="generatePlaylistMappings()">
+                                    <i data-lucide="wand-2"></i>
+                                    <span>Generate Mappings</span>
+                                </button>
+                            </div>
+                            <div id="playlistToolsStatus"></div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-title">Playlist Mapping Editor</div>
+                            <p class="card-desc">Select a playlist and press a button on your Launchpad to create a mapping.</p>
+                            <div class="form-group">
+                                <label for="playlistSelect">Select Playlist</label>
+                                <select id="playlistSelect">
+                                    <option value="">Loading playlists…</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="mappingAnimationSelect">Select Animation (Optional)</label>
+                                <select id="mappingAnimationSelect">
+                                    <option value="">None</option>
+                                </select>
+                            </div>
+                            <div class="controls">
+                                <button class="btn btn-primary" type="button" onclick="startMapping()" id="startMappingBtn">
+                                    <i data-lucide="crosshair"></i>
+                                    <span>Map Button</span>
+                                </button>
+                                <button class="btn" type="button" onclick="cancelMapping()" id="cancelMappingBtn" style="display: none;">
+                                    <i data-lucide="x"></i>
+                                    <span>Cancel</span>
+                                </button>
+                            </div>
+                            <div id="mappingStatus"></div>
+                        </div>
+
+                        <div class="card card-span">
+                            <div class="card-title">
+                                <span>Playlist Mappings</span>
+                                <div class="controls" style="gap: 0.5rem;">
+                                    <button type="button" class="btn btn-small" onclick="refreshMappings()">Refresh</button>
+                                    <button type="button" class="btn btn-small btn-danger" onclick="clearAllMappings()">Clear All</button>
+                                </div>
+                            </div>
+                            <div class="mapping-preview" id="mappingPreview">
+                                <div class="list-empty">Loading mappings…</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Animations -->
+                <section class="section" id="section-animations" data-section="animations">
+                    <div class="page-grid">
+                        <div class="card">
+                            <div class="card-title">Animation Control</div>
+                            <div class="form-group">
+                                <label for="animationSelect">Select Animation</label>
+                                <select id="animationSelect">
+                                    <option value="">Loading animations…</option>
+                                </select>
+                            </div>
+                            <div class="controls">
+                                <button class="btn btn-primary" type="button" onclick="startAnimation()">
+                                    <i data-lucide="play"></i>
+                                    <span>Start</span>
+                                </button>
+                                <button class="btn" type="button" onclick="stopAnimation()">
+                                    <i data-lucide="square"></i>
+                                    <span>Stop</span>
+                                </button>
+                            </div>
+                            <div id="animationStatus"></div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-title">Audio Features</div>
+                            <div class="status-item">
+                                <span class="status-label">Status</span>
+                                <span id="audio-features-status" class="status-value">Checking…</span>
+                            </div>
+                            <div class="controls">
+                                <button class="btn" type="button" onclick="toggleAudioFeatures()" id="audio-toggle-btn">
+                                    Enable
+                                </button>
+                                <button class="btn" type="button" onclick="pauseResumeAudioFeatures()" id="audio-pause-btn">
+                                    Pause
+                                </button>
+                            </div>
+                            <div id="audio-features-info" class="audio-info" style="display: none;">
+                                <h3>Current Track Features</h3>
+                                <div class="feature-grid">
+                                    <div class="feature-item">
+                                        <span class="feature-label">Energy</span>
+                                        <span id="feature-energy" class="feature-value">-</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <span class="feature-label">Tempo</span>
+                                        <span id="feature-tempo" class="feature-value">-</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <span class="feature-label">Danceability</span>
+                                        <span id="feature-danceability" class="feature-value">-</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <span class="feature-label">Valence</span>
+                                        <span id="feature-valence" class="feature-value">-</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <span class="feature-label">Suggested</span>
+                                        <span id="feature-suggested" class="feature-value">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- User Actions -->
+                <section class="section" id="section-user-actions" data-section="user-actions">
+                    <div class="page-stack">
+                        <div class="card">
+                            <div class="card-title">User Mode Actions</div>
+                            <p class="card-desc">Bind shell, URL, HTTP, app toggle, or AppleScript actions to Launchpad grid pads.</p>
+                            <ol class="steps-list">
+                                <li>Choose a profile: <strong>User 1 (5,8)</strong> or <strong>User 2 (6,8)</strong></li>
+                                <li>Fill in the action type and fields</li>
+                                <li>Click <strong>“Map — then press Launchpad”</strong></li>
+                                <li>On the Launchpad, <strong>press a grid pad</strong> (not the top row or right column: x=0–7, y=0–7). The action is saved to that pad</li>
+                                <li>To use it later: press User 1/2 to enter the mode, then press the mapped grid pad to run the action</li>
+                            </ol>
+                            <div class="form-group">
+                                <label for="userProfileSelect">Profile</label>
+                                <select id="userProfileSelect" onchange="refreshUserActions()">
+                                    <option value="user1">User 1 (5,8)</option>
+                                    <option value="user2">User 2 (6,8)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="userActionLabel">Label</label>
+                                <input type="text" id="userActionLabel" placeholder="e.g. Safari toggle">
+                            </div>
+                            <div class="form-group">
+                                <label for="userActionType">Action type</label>
+                                <select id="userActionType" onchange="updateUserActionFormFields()">
+                                    <option value="shell">Shell command</option>
+                                    <option value="open_url">Open URL</option>
+                                    <option value="http_request">HTTP request</option>
+                                    <option value="app_toggle">App toggle</option>
+                                    <option value="applescript">AppleScript</option>
+                                </select>
+                            </div>
+                            <div id="userActionFields" class="user-action-fields"></div>
+                            <div class="controls">
+                                <button class="btn btn-primary" type="button" onclick="startUserActionMapping()" id="startUserActionBtn">
+                                    Map — then press Launchpad
+                                </button>
+                                <button class="btn" type="button" onclick="cancelUserActionMapping()" id="cancelUserActionBtn" style="display: none;">
+                                    Cancel — stop waiting
+                                </button>
+                            </div>
+                            <div id="userActionStatus"></div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-title">
+                                <span>User Mode Mappings</span>
+                                <button type="button" class="btn btn-small" onclick="refreshUserActions()">Refresh</button>
+                            </div>
+                            <div class="mapping-preview" id="userActionPreview">
+                                <div class="list-empty">Loading user actions…</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Settings -->
+                <section class="section" id="section-settings" data-section="settings">
+                    <div class="settings-grid">
+                        <div class="card">
+                            <div class="card-title">Default Spotify Device</div>
+                            <p class="card-desc">Set your default Spotify device. This device will be used when no active device is found.</p>
+                            <div class="form-group">
+                                <label for="defaultDeviceSelect">Select Default Device</label>
+                                <select id="defaultDeviceSelect" onchange="onDefaultDeviceSelectChange()">
+                                    <option value="">Loading devices…</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-row" for="autoLaunchSpotify">
+                                    <input type="checkbox" id="autoLaunchSpotify" onchange="saveAutoLaunchSpotify()">
+                                    <span>Auto-launch Spotify when closed</span>
+                                </label>
+                                <p class="card-desc" id="autoLaunchHint" style="margin-top: 8px;">
+                                    Only available when the default device is this Mac. If you change the default to another device, this option turns off automatically.
+                                </p>
+                            </div>
+                            <div class="controls">
+                                <button class="btn btn-primary" type="button" onclick="saveDefaultDevice()">
+                                    <i data-lucide="save"></i>
+                                    <span>Save Default Device</span>
+                                </button>
+                                <button class="btn" type="button" onclick="clearDefaultDevice()">
+                                    <i data-lucide="trash-2"></i>
+                                    <span>Clear</span>
+                                </button>
+                            </div>
+                            <div id="deviceStatus"></div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-title">Account &amp; Appearance</div>
+                            <p class="card-desc">Re-authenticate Spotify or switch between light and dark themes.</p>
+                            <div class="controls">
+                                <button class="btn btn-primary" type="button" onclick="reauthSpotify()">
+                                    <i data-lucide="key-round"></i>
+                                    <span>Re-auth Spotify</span>
+                                </button>
+                                <button class="btn" type="button" onclick="toggleTheme()">
+                                    <i data-lucide="sun-moon"></i>
+                                    <span>Toggle Theme</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <div id="globalToast" class="global-toast" role="status" aria-live="polite"></div>
+
+            <footer class="app-footer">
+                <div class="footer-status" id="footerStatus">
+                    <span class="dot" id="footerStatusDot"></span>
+                    <span id="footerStatusText">Checking Launchpad MIDI…</span>
+                </div>
+                <div class="footer-links">
+                    <a class="icon-btn" href="https://github.com/orkank/Launchpad-MK2" target="_blank" rel="noopener noreferrer" title="GitHub" aria-label="GitHub">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65S8.93 17.38 9 18v4"/>
+                            <path d="M9 18c-4.51 2-5-2-7-2"/>
+                        </svg>
+                    </a>
+                    <button type="button" class="icon-btn" title="Help" aria-label="Help" onclick="showToast('Use the sidebar to navigate Dashboard, Playlists, Animations, User Actions, and Settings.')">
+                        <i data-lucide="circle-help"></i>
+                    </button>
+                </div>
+            </footer>
         </div>
     </div>
 
@@ -628,45 +604,295 @@
         let currentTrack = null;
         let isPlaying = false;
         let currentAnimationName = null;
-        let availableAnimations = []; // Store animations globally for mapping dropdowns
+        let availableAnimations = [];
+        let currentSection = 'dashboard';
 
-        // Initialize the page
+        const SECTION_META = {
+            dashboard: { title: 'Dashboard', subtitle: 'Overview of your Launchpad MK2.' },
+            playlists: { title: 'Playlists', subtitle: 'Map Spotify playlists to Launchpad pads.' },
+            animations: { title: 'Animations', subtitle: 'Control LED animations and audio features.' },
+            'user-actions': { title: 'User Actions', subtitle: 'Bind system actions to Launchpad pads.' },
+            settings: { title: 'Settings', subtitle: 'Device, account, and appearance.' }
+        };
+
+        function refreshIcons() {
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
+        }
+
+        function isMobileNav() {
+            return window.matchMedia('(max-width: 1100px)').matches;
+        }
+
+        function openMobileNav() {
+            document.body.classList.add('nav-open');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggle = document.getElementById('menuToggle');
+            if (overlay) overlay.hidden = false;
+            if (toggle) toggle.setAttribute('aria-expanded', 'true');
+            refreshIcons();
+        }
+
+        function closeMobileNav() {
+            document.body.classList.remove('nav-open');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggle = document.getElementById('menuToggle');
+            if (overlay) overlay.hidden = true;
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        }
+
+        function toggleMobileNav() {
+            if (document.body.classList.contains('nav-open')) {
+                closeMobileNav();
+            } else {
+                openMobileNav();
+            }
+        }
+
+        function showSection(name) {
+            if (!SECTION_META[name]) name = 'dashboard';
+            currentSection = name;
+
+            document.querySelectorAll('.section').forEach(el => {
+                el.classList.toggle('active', el.dataset.section === name);
+            });
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.toggle('active', el.dataset.nav === name);
+            });
+
+            const meta = SECTION_META[name];
+            document.getElementById('pageTitle').textContent = meta.title;
+            document.getElementById('pageSubtitle').textContent = meta.subtitle;
+
+            if (location.hash !== '#' + name) {
+                history.replaceState(null, '', '#' + name);
+            }
+
+            if (isMobileNav()) {
+                closeMobileNav();
+            }
+
+            refreshIcons();
+        }
+
+        function toggleTheme() {
+            const root = document.documentElement;
+            const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+            if (next === 'dark') {
+                root.removeAttribute('data-theme');
+            } else {
+                root.setAttribute('data-theme', 'light');
+            }
+            localStorage.setItem('lp-theme', next === 'dark' ? 'dark' : 'light');
+            refreshIcons();
+        }
+
+        function initTheme() {
+            const saved = localStorage.getItem('lp-theme');
+            if (saved === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        }
+
+        function showToast(message) {
+            showMessage(message, 'info');
+        }
+
+        function updateDeviceDisplays() {
+            const select = document.getElementById('defaultDeviceSelect');
+            const option = select && select.selectedIndex >= 0 ? select.options[select.selectedIndex] : null;
+            const hasDevice = select && select.value;
+            let name = 'No device selected';
+            if (hasDevice && option) {
+                name = option.textContent.replace(/\s*\(ACTIVE\)\s*$/, '').trim();
+            }
+
+            const dashName = document.getElementById('dashDeviceName');
+            const toolbarName = document.getElementById('toolbarDeviceName');
+            const toolbarSub = document.getElementById('toolbarDeviceSub');
+            const dashLabel = document.getElementById('dashDeviceLabel');
+            const dashPill = document.getElementById('dashDevicePill');
+
+            if (dashName) dashName.textContent = name;
+            if (toolbarName) toolbarName.textContent = hasDevice ? name.split(' (')[0] : 'No device';
+            if (toolbarSub) toolbarSub.textContent = hasDevice ? 'Active Device' : 'No device';
+            if (dashLabel) dashLabel.textContent = hasDevice ? 'Online' : 'Offline';
+            if (dashPill) dashPill.classList.toggle('running', !!hasDevice);
+
+            updateAutoLaunchUi();
+        }
+
+        function onDefaultDeviceSelectChange() {
+            updateDeviceDisplays();
+        }
+
+        function updateAutoLaunchUi(serverState) {
+            const checkbox = document.getElementById('autoLaunchSpotify');
+            const hint = document.getElementById('autoLaunchHint');
+            if (!checkbox) return;
+
+            const select = document.getElementById('defaultDeviceSelect');
+            const option = select && select.value
+                ? select.options[select.selectedIndex]
+                : null;
+            const selectedIsLocal = !!(option && option.dataset.local === 'true');
+            const savedDefaultId = serverState
+                ? (serverState.default_device_id || '')
+                : (window._savedDefaultDeviceId || '');
+            const savedIsLocal = serverState
+                ? !!serverState.default_device_is_local
+                : !!window._savedDefaultIsLocal;
+
+            // Enable checkbox only when the saved default device is this Mac
+            const canEnable = !!savedDefaultId && savedIsLocal;
+            checkbox.disabled = !canEnable;
+
+            if (serverState && typeof serverState.auto_launch_spotify === 'boolean') {
+                checkbox.checked = serverState.auto_launch_spotify;
+            } else if (!canEnable) {
+                checkbox.checked = false;
+            }
+
+            if (hint) {
+                if (!savedDefaultId) {
+                    hint.textContent = 'Save a default device first. Auto-launch is only available when that device is this Mac.';
+                } else if (!savedIsLocal) {
+                    hint.textContent = 'Auto-launch is unavailable: the saved default device is not this Mac. Choose and save this computer as default to enable it.';
+                } else if (select && select.value && select.value !== savedDefaultId && !selectedIsLocal) {
+                    hint.textContent = 'Saving this non-local device as default will turn off Auto-launch Spotify.';
+                } else {
+                    hint.textContent = 'When Spotify is closed and no Connect devices are found, launch the Spotify app on this Mac automatically.';
+                }
+            }
+        }
+
+        async function loadAppSettings() {
+            try {
+                const response = await fetch('/api/app-settings');
+                const data = await response.json();
+                if (!response.ok) return;
+                window._savedDefaultDeviceId = data.default_device_id || '';
+                window._savedDefaultIsLocal = !!data.default_device_is_local;
+                updateAutoLaunchUi(data);
+            } catch (error) {
+                console.error('Failed to load app settings:', error);
+            }
+        }
+
+        async function saveAutoLaunchSpotify() {
+            const checkbox = document.getElementById('autoLaunchSpotify');
+            if (!checkbox) return;
+            const enabled = !!checkbox.checked;
+            try {
+                const response = await fetch('/api/app-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ auto_launch_spotify: enabled })
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    checkbox.checked = false;
+                    showDeviceMessage(data.error || 'Could not update Auto-launch Spotify', 'error');
+                    updateAutoLaunchUi(data);
+                    return;
+                }
+                window._savedDefaultDeviceId = data.default_device_id || '';
+                window._savedDefaultIsLocal = !!data.default_device_is_local;
+                updateAutoLaunchUi(data);
+                showDeviceMessage(
+                    enabled ? 'Auto-launch Spotify enabled' : 'Auto-launch Spotify disabled',
+                    'success'
+                );
+            } catch (error) {
+                checkbox.checked = false;
+                showDeviceMessage('Network error: ' + error.message, 'error');
+            }
+        }
+
+        function updateAnimationRunningUi(name) {
+            const preview = document.getElementById('animPreview');
+            const pill = document.getElementById('animationRunningPill');
+            const label = document.getElementById('animationRunningLabel');
+            const running = !!name;
+            if (preview) preview.classList.toggle('is-idle', !running);
+            if (pill) pill.classList.toggle('running', running);
+            if (label) label.textContent = running ? 'Running' : 'Idle';
+        }
+
+        async function syncDevice() {
+            await loadDevices();
+            await loadDefaultDevice();
+            await refreshStatus();
+            showMessage('Devices synced', 'success');
+        }
+
+        function quickTestAnimation() {
+            showSection('animations');
+            showMessage('Select an animation, then press Start', 'info');
+            const select = document.getElementById('animationSelect');
+            if (select) select.focus();
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+
+            const hash = (location.hash || '').replace(/^#/, '');
+            showSection(SECTION_META[hash] ? hash : 'dashboard');
+
             loadAnimations();
             loadPlaylists();
             loadDevices();
             loadDefaultDevice();
+            loadAppSettings();
             refreshStatus();
             refreshMappings();
             refreshAudioFeaturesStatus();
             checkMappingStatus();
+            updateUserActionFormFields();
+            refreshUserActions();
+            checkUserActionStatus();
+            refreshIcons();
 
-            // Update status every 5 seconds
             setInterval(refreshStatus, 5000);
-            setInterval(refreshAudioFeaturesStatus, 3000); // Audio features every 3 seconds
-            setInterval(checkMappingStatus, 1000); // Check mapping status every second
+            setInterval(refreshAudioFeaturesStatus, 3000);
+            setInterval(checkMappingStatus, 1000);
+            setInterval(checkUserActionStatus, 1000);
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closeMobileNav();
+            });
+
+            window.addEventListener('resize', function() {
+                if (!isMobileNav()) closeMobileNav();
+            });
+        });
+
+        window.addEventListener('hashchange', function() {
+            const hash = (location.hash || '').replace(/^#/, '');
+            if (SECTION_META[hash]) showSection(hash);
         });
 
         async function loadAnimations() {
             try {
                 const response = await fetch('/list');
                 const animations = await response.json();
-                availableAnimations = animations; // Store globally
+                availableAnimations = animations;
 
                 const select = document.getElementById('animationSelect');
                 const mappingSelect = document.getElementById('mappingAnimationSelect');
-                
+                const countEl = document.getElementById('animationCount');
+
                 select.innerHTML = '<option value="">-- Select Animation --</option>';
                 mappingSelect.innerHTML = '<option value="">None</option>';
+                if (countEl) countEl.textContent = animations.length;
 
                 animations.forEach(animation => {
                     const option = document.createElement('option');
                     option.value = animation;
                     option.textContent = animation;
                     select.appendChild(option);
-
-                    const mappingOption = option.cloneNode(true);
-                    mappingSelect.appendChild(mappingOption);
+                    mappingSelect.appendChild(option.cloneNode(true));
                 });
             } catch (error) {
                 console.error('Failed to load animations:', error);
@@ -694,6 +920,114 @@
             }
         }
 
+        function showPlaylistToolsMessage(message, type) {
+            const statusDiv = document.getElementById('playlistToolsStatus');
+            if (!statusDiv) return;
+            statusDiv.className = type + '-message';
+            statusDiv.textContent = message;
+            const timeout = (type === 'error' || type === 'warning') ? 8000 : 5000;
+            setTimeout(() => {
+                if (statusDiv.textContent === message) {
+                    statusDiv.textContent = '';
+                    statusDiv.className = '';
+                }
+            }, timeout);
+            showMessage(message, type);
+        }
+
+        async function fetchPlaylistsFromSpotify() {
+            const btn = document.getElementById('fetchPlaylistsBtn');
+            if (btn) btn.disabled = true;
+            showPlaylistToolsMessage('Fetching playlists from Spotify…', 'info');
+            try {
+                const response = await fetch('/api/playlists/fetch', { method: 'POST' });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showPlaylistToolsMessage(result.message || 'Playlists fetched', 'success');
+                    await loadPlaylists();
+                } else {
+                    showPlaylistToolsMessage(result.error || 'Failed to fetch playlists', 'error');
+                    if (result.needs_reauth) {
+                        showPlaylistToolsMessage('Spotify auth required — use Reconnect in Settings', 'warning');
+                    }
+                }
+            } catch (error) {
+                showPlaylistToolsMessage('Network error: ' + error.message, 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function generatePlaylistMappings() {
+            const filter = document.getElementById('generateFilterSelect')?.value || 'newest';
+            const mode = document.getElementById('generateModeSelect')?.value || 'fill';
+            const replaceAll = mode === 'replace';
+
+            const confirmMsg = replaceAll
+                ? `Replace ALL existing pad mappings?\n\n` +
+                  `Filter: ${filter}\n` +
+                  'This clears every mapping and rebuilds the grid from scratch. This cannot be undone.'
+                : `Fill empty pads with unmapped playlists (${filter})?\n\n` +
+                  'Existing mappings are kept; free pads are filled until the grid is full.';
+
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            const btn = document.getElementById('generateMappingsBtn');
+            if (btn) btn.disabled = true;
+            showPlaylistToolsMessage(
+                replaceAll
+                    ? `Replacing all mappings (${filter})…`
+                    : `Filling empty pads (${filter})…`,
+                'info'
+            );
+            try {
+                const response = await fetch('/api/mapping/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filter, mode })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showPlaylistToolsMessage(result.message || 'Mappings updated', 'success');
+                    await refreshMappings();
+                    await loadPlaylists();
+                } else {
+                    showPlaylistToolsMessage(result.error || 'Failed to generate mappings', 'error');
+                }
+            } catch (error) {
+                showPlaylistToolsMessage('Network error: ' + error.message, 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function randomizeMappingAnimations() {
+            if (!confirm(
+                'Randomize the animation for every mapped playlist?\n\n' +
+                'This overwrites animation choices in config/playlists.json.'
+            )) {
+                return;
+            }
+            const btn = document.getElementById('randomizeAnimationsBtn');
+            if (btn) btn.disabled = true;
+            showPlaylistToolsMessage('Randomizing animations…', 'info');
+            try {
+                const response = await fetch('/api/mapping/randomize-animations', { method: 'POST' });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showPlaylistToolsMessage(result.message || 'Animations randomized', 'success');
+                    await refreshMappings();
+                } else {
+                    showPlaylistToolsMessage(result.error || 'Failed to randomize animations', 'error');
+                }
+            } catch (error) {
+                showPlaylistToolsMessage('Network error: ' + error.message, 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
         async function loadDevices() {
             try {
                 const response = await fetch('/devices');
@@ -701,18 +1035,26 @@
                 const devices = data.devices || [];
 
                 const select = document.getElementById('defaultDeviceSelect');
+                const previous = select.value;
                 select.innerHTML = '<option value="">-- Select Device --</option>';
 
                 devices.forEach(device => {
                     const option = document.createElement('option');
                     option.value = device.id;
+                    option.dataset.local = device.is_local ? 'true' : 'false';
+                    const localTag = device.is_local ? ' · This Mac' : '';
                     const status = device.is_active ? ' (ACTIVE)' : '';
-                    option.textContent = `${device.name} (${device.type})${status}`;
+                    option.textContent = `${device.name} (${device.type})${localTag}${status}`;
                     select.appendChild(option);
                 });
+
+                if (previous) select.value = previous;
+                updateDeviceDisplays();
+                loadAppSettings();
             } catch (error) {
                 console.error('Failed to load devices:', error);
                 document.getElementById('defaultDeviceSelect').innerHTML = '<option value="">Error loading devices</option>';
+                updateDeviceDisplays();
             }
         }
 
@@ -721,13 +1063,18 @@
                 const response = await fetch('/api/default-device');
                 const data = await response.json();
                 const defaultDeviceId = data.default_device_id || '';
+                window._savedDefaultDeviceId = defaultDeviceId;
 
                 if (defaultDeviceId) {
                     const select = document.getElementById('defaultDeviceSelect');
-                    // Wait a bit for devices to load
                     setTimeout(() => {
                         select.value = defaultDeviceId;
+                        updateDeviceDisplays();
+                        loadAppSettings();
                     }, 500);
+                } else {
+                    updateDeviceDisplays();
+                    loadAppSettings();
                 }
             } catch (error) {
                 console.error('Failed to load default device:', error);
@@ -746,9 +1093,7 @@
             try {
                 const response = await fetch('/api/default-device', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ device_id: deviceId })
                 });
 
@@ -756,7 +1101,10 @@
 
                 if (response.ok && result.success) {
                     const deviceName = select.options[select.selectedIndex].textContent;
-                    showDeviceMessage(`✅ Default device set to: ${deviceName}`, 'success');
+                    showDeviceMessage(result.message || `Default device set to: ${deviceName}`, 'success');
+                    window._savedDefaultDeviceId = deviceId;
+                    await loadAppSettings();
+                    updateDeviceDisplays();
                 } else {
                     showDeviceMessage(result.error || 'Failed to save default device', 'error');
                 }
@@ -769,9 +1117,7 @@
             try {
                 const response = await fetch('/api/default-device', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ device_id: '' })
                 });
 
@@ -779,7 +1125,10 @@
 
                 if (response.ok && result.success) {
                     document.getElementById('defaultDeviceSelect').value = '';
-                    showDeviceMessage('✅ Default device cleared', 'success');
+                    window._savedDefaultDeviceId = '';
+                    showDeviceMessage(result.message || 'Default device cleared', 'success');
+                    await loadAppSettings();
+                    updateDeviceDisplays();
                 } else {
                     showDeviceMessage(result.error || 'Failed to clear default device', 'error');
                 }
@@ -806,27 +1155,73 @@
 
                 updateTrackInfo(data.current_track, data.is_playing);
                 updateSpotifyStatus(data.spotify_connected, data.needs_reauth);
+                updateLaunchpadStatus(data.launchpad_connected, data.launchpad_port);
 
                 const authWarning = document.getElementById('authWarning');
                 if (authWarning) {
                     authWarning.style.display = data.needs_reauth ? 'block' : 'none';
                 }
 
-                // Update current animation display
                 currentAnimationName = data.current_animation;
                 document.getElementById('currentAnimation').textContent = currentAnimationName || 'None';
-
+                updateAnimationRunningUi(currentAnimationName);
             } catch (error) {
                 console.error('Failed to refresh status:', error);
-                document.getElementById('spotifyStatus').textContent = '❌';
+                document.getElementById('spotifyStatus').textContent = 'Error';
+                updateSpotifyStatus(false, false);
+                updateLaunchpadStatus(false, null);
             }
+        }
+
+        function updateLaunchpadStatus(connected, portName) {
+            const warning = document.getElementById('launchpadWarning');
+            if (warning) {
+                warning.hidden = !!connected;
+            }
+
+            const statusEl = document.getElementById('launchpadStatus');
+            const hintEl = document.getElementById('launchpadStatusHint');
+            const card = document.getElementById('launchpadStatCard');
+            if (statusEl) statusEl.textContent = connected ? 'OK' : 'Lost';
+            if (hintEl) hintEl.textContent = connected
+                ? (portName ? String(portName).slice(0, 28) : 'Connected')
+                : 'Not reachable';
+            if (card) card.classList.toggle('is-error', !connected);
+
+            const toolbarName = document.getElementById('toolbarLaunchpadName');
+            const toolbarSub = document.getElementById('toolbarLaunchpadSub');
+            const toolbarDot = document.getElementById('toolbarLaunchpadDot');
+            const toolbarChip = document.getElementById('toolbarLaunchpadChip');
+            if (toolbarName) toolbarName.textContent = 'Launchpad';
+            if (toolbarSub) toolbarSub.textContent = connected ? 'Connected' : 'Disconnected';
+            if (toolbarDot) {
+                toolbarDot.style.background = connected ? 'var(--success)' : 'var(--danger)';
+            }
+            if (toolbarChip) toolbarChip.classList.toggle('is-error', !connected);
+
+            const footerDot = document.getElementById('footerStatusDot');
+            const footerText = document.getElementById('footerStatusText');
+            const footerStatus = document.getElementById('footerStatus');
+            if (footerText) {
+                footerText.textContent = connected
+                    ? `Launchpad MIDI connected${portName ? ' · ' + portName : ''}`
+                    : 'Launchpad MIDI disconnected — check USB / Audio MIDI Setup';
+            }
+            if (footerDot) {
+                footerDot.style.background = connected ? 'var(--success)' : 'var(--danger)';
+                footerDot.style.boxShadow = connected
+                    ? '0 0 10px rgba(51, 209, 122, 0.55)'
+                    : '0 0 10px rgba(255, 100, 124, 0.55)';
+            }
+            if (footerStatus) footerStatus.classList.toggle('is-error', !connected);
         }
 
         async function reauthSpotify() {
             const btn = document.getElementById('reauthBtn');
             if (btn) {
                 btn.disabled = true;
-                btn.textContent = '🔐 Opening...';
+                btn.innerHTML = '<i data-lucide="loader-circle"></i><span>Opening…</span>';
+                refreshIcons();
             }
             try {
                 showMessage('Opening Spotify login in the host browser...', 'info');
@@ -843,9 +1238,60 @@
             } finally {
                 if (btn) {
                     btn.disabled = false;
-                    btn.textContent = '🔐 Re-auth';
+                    btn.innerHTML = '<i data-lucide="key-round"></i><span>Re-auth</span>';
+                    refreshIcons();
                 }
             }
+        }
+
+        function renderMappingList(mappings, options) {
+            const { interactive, limit } = options || {};
+            const entries = Object.entries(mappings);
+            const slice = typeof limit === 'number' ? entries.slice(0, limit) : entries;
+
+            if (!entries.length) {
+                return '<div class="list-empty">No mappings found. Create one with the mapping editor.</div>';
+            }
+
+            return slice.map(([, mapping]) => {
+                const [x, y] = mapping.coordinates;
+                const currentAnimation = mapping.animation || '';
+                const playlist = escapeHtml(mapping.playlist || '');
+
+                if (!interactive) {
+                    return `
+                        <div class="list-item">
+                            <div class="list-item-icon"><i data-lucide="list-music"></i></div>
+                            <div class="list-item-body">
+                                <div class="list-item-title">${playlist}</div>
+                                <div class="list-item-sub">Pad (${x},${y})</div>
+                            </div>
+                            <span class="anim-badge">${escapeHtml(currentAnimation || 'None')}</span>
+                        </div>`;
+                }
+
+                let animationOptions = '<option value="">None</option>';
+                availableAnimations.forEach(anim => {
+                    const selected = anim === currentAnimation ? 'selected' : '';
+                    animationOptions += `<option value="${escapeHtml(anim)}" ${selected}>${escapeHtml(anim)}</option>`;
+                });
+
+                return `
+                    <div class="mapping-item">
+                        <span class="mapping-position">(${x},${y})</span>
+                        <span class="mapping-playlist">${playlist}</span>
+                        <select class="mapping-animation-select"
+                                onchange="updateMappingAnimation(${x}, ${y}, this.value)"
+                                id="anim-select-${x}-${y}">
+                            ${animationOptions}
+                        </select>
+                        <div class="mapping-item-actions">
+                            <button class="btn btn-small btn-danger" type="button" onclick="deleteMapping(${x}, ${y})" title="Delete mapping">
+                                <i data-lucide="trash-2"></i>
+                            </button>
+                        </div>
+                    </div>`;
+            }).join('');
         }
 
         async function refreshMappings() {
@@ -854,48 +1300,25 @@
                 const mappings = await response.json();
 
                 const preview = document.getElementById('mappingPreview');
+                const dashPreview = document.getElementById('mappingDashPreview');
                 const count = Object.keys(mappings).length;
 
                 document.getElementById('mappedCount').textContent = count;
 
-                if (count === 0) {
-                    preview.innerHTML = '<div style="text-align: center; color: var(--muted); padding: 18px 0;">No mappings found. Use the terminal to generate mappings.</div>';
-                    return;
+                if (preview) {
+                    preview.innerHTML = renderMappingList(mappings, { interactive: true });
                 }
-
-                let html = '';
-                Object.entries(mappings).forEach(([coord, mapping]) => {
-                    const [x, y] = mapping.coordinates;
-                    const currentAnimation = mapping.animation || '';
-                    
-                    // Build animation dropdown options
-                    let animationOptions = '<option value="">None</option>';
-                    availableAnimations.forEach(anim => {
-                        const selected = anim === currentAnimation ? 'selected' : '';
-                        animationOptions += `<option value="${anim}" ${selected}>${anim}</option>`;
-                    });
-                    
-                    html += `
-                        <div class="mapping-item">
-                            <span class="mapping-position">(${x},${y})</span>
-                            <span class="mapping-playlist">${mapping.playlist}</span>
-                            <select class="mapping-animation-select" 
-                                    onchange="updateMappingAnimation(${x}, ${y}, this.value)" 
-                                    id="anim-select-${x}-${y}">
-                                ${animationOptions}
-                            </select>
-                            <div class="mapping-item-actions">
-                                <button class="btn btn-small btn-danger" onclick="deleteMapping(${x}, ${y})" title="Delete mapping">🗑️</button>
-                            </div>
-                        </div>
-                    `;
-                });
-
-                preview.innerHTML = html;
-
+                if (dashPreview) {
+                    dashPreview.innerHTML = renderMappingList(mappings, { interactive: false, limit: 5 });
+                }
+                refreshIcons();
             } catch (error) {
                 console.error('Failed to refresh mappings:', error);
-                document.getElementById('mappingPreview').innerHTML = '<div style="text-align: center; color: var(--bad); padding: 18px 0;">Error loading mappings</div>';
+                const err = '<div class="list-empty" style="color:var(--danger);">Error loading mappings</div>';
+                const preview = document.getElementById('mappingPreview');
+                const dashPreview = document.getElementById('mappingDashPreview');
+                if (preview) preview.innerHTML = err;
+                if (dashPreview) dashPreview.innerHTML = err;
             }
         }
 
@@ -904,25 +1327,58 @@
             const playBtn = document.getElementById('playBtn');
 
             isPlaying = playing;
+            currentTrack = track;
 
             if (track && track.name) {
                 trackInfo.innerHTML = `
-                    <div class="track-name">${track.name}</div>
-                    <div class="track-artist">${track.artists}</div>
+                    <div class="track-name">${escapeHtml(track.name)}</div>
+                    <div class="track-artist">${escapeHtml(track.artists)}</div>
                 `;
             } else {
                 trackInfo.innerHTML = '<div class="no-track">No track playing</div>';
             }
 
-            playBtn.textContent = playing ? '⏸️ Pause' : '▶️ Play';
+            if (playBtn) {
+                playBtn.innerHTML = playing
+                    ? '<i data-lucide="pause"></i><span>Pause</span>'
+                    : '<i data-lucide="play"></i><span>Play</span>';
+                refreshIcons();
+            }
         }
 
         function updateSpotifyStatus(connected, needsReauth) {
             const status = document.getElementById('spotifyStatus');
+            const hint = document.getElementById('spotifyStatusHint');
+            const sidebarLabel = document.getElementById('sidebarSpotifyLabel');
+            const sidebarDot = document.getElementById('sidebarSpotifyDot');
+            const heroText = document.getElementById('heroSpotifyText');
+            const heroBadge = document.getElementById('heroSpotifyBadge');
+
+            let label = 'Disconnected';
+            let color = 'var(--muted)';
             if (needsReauth) {
-                status.textContent = '🔐';
-            } else {
-                status.textContent = connected ? '✅' : '❌';
+                label = 'Re-auth';
+                color = 'var(--warning)';
+            } else if (connected) {
+                label = 'Connected';
+                color = 'var(--success)';
+            }
+
+            if (status) status.textContent = label;
+            if (hint) hint.textContent = needsReauth ? 'Login required' : (connected ? 'Connected' : 'Offline');
+            if (sidebarLabel) sidebarLabel.textContent = label;
+            if (sidebarDot) sidebarDot.style.background = color;
+            if (heroText) heroText.textContent = needsReauth ? 'Re-auth needed' : (connected ? 'Spotify Connected' : 'Spotify Offline');
+            if (heroBadge) {
+                heroBadge.style.borderColor = needsReauth
+                    ? 'rgba(255,184,77,0.35)'
+                    : (connected ? 'rgba(30,215,96,0.28)' : 'var(--line-strong)');
+                heroBadge.style.color = needsReauth
+                    ? 'var(--warning)'
+                    : (connected ? 'var(--spotify)' : 'var(--muted)');
+                heroBadge.style.background = needsReauth
+                    ? 'rgba(255,184,77,0.12)'
+                    : (connected ? 'rgba(30,215,96,0.12)' : 'rgba(255,255,255,0.04)');
             }
         }
 
@@ -971,6 +1427,7 @@
                     showMessage(`Started animation: ${animation}`, 'success');
                     currentAnimationName = animation;
                     document.getElementById('currentAnimation').textContent = animation;
+                    updateAnimationRunningUi(animation);
                 } else {
                     showMessage(result.message || 'Failed to start animation', 'error');
                 }
@@ -988,6 +1445,7 @@
                     showMessage('Animation stopped', 'success');
                     currentAnimationName = null;
                     document.getElementById('currentAnimation').textContent = 'None';
+                    updateAnimationRunningUi(null);
                 } else {
                     showMessage('Failed to stop animation', 'error');
                 }
@@ -998,15 +1456,29 @@
 
         function showMessage(message, type) {
             const status = document.getElementById('animationStatus');
-            status.className = type + '-message';
-            status.textContent = message;
+            if (status && currentSection === 'animations') {
+                status.className = type + '-message';
+                status.textContent = message;
+                setTimeout(() => {
+                    if (status.textContent === message) {
+                        status.textContent = '';
+                        status.className = '';
+                    }
+                }, 3000);
+            }
 
-            setTimeout(() => {
-                status.textContent = '';
-                status.className = '';
-            }, 3000);
+            const toast = document.getElementById('globalToast');
+            if (toast) {
+                toast.className = 'global-toast show ' + (type || 'info') + '-message';
+                toast.textContent = message;
+                clearTimeout(showMessage._timer);
+                showMessage._timer = setTimeout(() => {
+                    toast.className = 'global-toast';
+                    toast.textContent = '';
+                }, 3200);
+            }
         }
-        // Audio Features Functions
+
         async function refreshAudioFeaturesStatus() {
             try {
                 const response = await fetch('/api/audio_features/status');
@@ -1027,26 +1499,22 @@
             const pauseBtn = document.getElementById('audio-pause-btn');
             const infoSection = document.getElementById('audio-features-info');
 
-            // Update status
             statusElement.textContent = status.status || 'unknown';
 
-            // Update toggle button
             if (status.enabled) {
-                toggleBtn.textContent = '🔇 Disable';
-                toggleBtn.style.background = 'linear-gradient(45deg, #ff6b6b, #ee5a24)';
+                toggleBtn.textContent = 'Disable';
+                toggleBtn.style.background = 'rgba(255, 100, 124, 0.14)';
+                toggleBtn.style.borderColor = 'rgba(255, 100, 124, 0.35)';
+                toggleBtn.style.color = 'var(--danger)';
             } else {
-                toggleBtn.textContent = '🎵 Enable';
-                toggleBtn.style.background = 'linear-gradient(45deg, #4ecdc4, #44a08d)';
+                toggleBtn.textContent = 'Enable';
+                toggleBtn.style.background = '';
+                toggleBtn.style.borderColor = '';
+                toggleBtn.style.color = '';
             }
 
-            // Update pause button
-            if (status.paused) {
-                pauseBtn.textContent = '▶️ Resume';
-            } else {
-                pauseBtn.textContent = '⏸️ Pause';
-            }
+            pauseBtn.textContent = status.paused ? 'Resume' : 'Pause';
 
-            // Show/hide audio features info
             if (status.current_features && status.enabled && !status.paused) {
                 infoSection.style.display = 'block';
                 updateTrackFeatures(status.current_features, status.suggested_animation);
@@ -1105,7 +1573,6 @@
             }
         }
 
-        // Playlist Mapping Functions
         let mappingStatusCheckInterval = null;
 
         async function startMapping() {
@@ -1122,13 +1589,8 @@
             try {
                 const response = await fetch('/api/mapping/start', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        playlist: playlist,
-                        animation: animation
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playlist, animation })
                 });
 
                 const result = await response.json();
@@ -1136,11 +1598,10 @@
                 if (response.ok && result.success) {
                     showMappingMessage('Mapping mode active! Press a button on your Launchpad device.', 'success');
                     document.getElementById('startMappingBtn').style.display = 'none';
-                    document.getElementById('cancelMappingBtn').style.display = 'inline-block';
+                    document.getElementById('cancelMappingBtn').style.display = 'inline-flex';
                     document.getElementById('playlistSelect').disabled = true;
                     document.getElementById('mappingAnimationSelect').disabled = true;
-                    
-                    // Start checking mapping status
+
                     if (!mappingStatusCheckInterval) {
                         mappingStatusCheckInterval = setInterval(checkMappingStatus, 500);
                     }
@@ -1154,29 +1615,23 @@
 
         async function cancelMapping() {
             try {
-                const response = await fetch('/api/mapping/cancel', {
-                    method: 'POST'
-                });
-
-                const result = await response.json();
+                const response = await fetch('/api/mapping/cancel', { method: 'POST' });
 
                 if (response.ok) {
-                    // Check for message from server
                     const statusResponse = await fetch('/api/mapping/status');
                     const status = await statusResponse.json();
-                    
+
                     if (status.last_message) {
                         showMappingMessage(status.last_message.message, status.last_message.type);
                     } else {
                         showMappingMessage('Mapping mode cancelled', 'success');
                     }
-                    
-                    document.getElementById('startMappingBtn').style.display = 'inline-block';
+
+                    document.getElementById('startMappingBtn').style.display = 'inline-flex';
                     document.getElementById('cancelMappingBtn').style.display = 'none';
                     document.getElementById('playlistSelect').disabled = false;
                     document.getElementById('mappingAnimationSelect').disabled = false;
-                    
-                    // Stop checking mapping status
+
                     if (mappingStatusCheckInterval) {
                         clearInterval(mappingStatusCheckInterval);
                         mappingStatusCheckInterval = null;
@@ -1192,35 +1647,30 @@
                 const response = await fetch('/api/mapping/status');
                 const status = await response.json();
 
-                // Check for pending confirmation (overwrite existing mapping)
-                if (status.pending_confirmation) {
+                if (status.pending_confirmation && !status.pending_confirmation.profile) {
                     const conf = status.pending_confirmation;
                     const existingInfo = `Playlist: ${conf.existing.name}${conf.existing.animation ? ', Animation: ' + conf.existing.animation : ''}`;
                     const newInfo = `Playlist: ${conf.playlist}${conf.animation ? ', Animation: ' + conf.animation : ''}`;
-                    
+
                     const confirmed = confirm(
-                        `⚠️ Button (${conf.x},${conf.y}) is already mapped to:\n${existingInfo}\n\n` +
+                        `Button (${conf.x},${conf.y}) is already mapped to:\n${existingInfo}\n\n` +
                         `Do you want to overwrite it with:\n${newInfo}?`
                     );
-                    
+
                     if (confirmed) {
-                        // User confirmed, proceed with overwrite
                         await fetch('/api/mapping/confirm-overwrite', { method: 'POST' });
-                        showMappingMessage(`✅ Mapping overwritten successfully!`, 'success');
+                        showMappingMessage('Mapping overwritten successfully!', 'success');
                         refreshMappings();
                     } else {
-                        // User cancelled
                         await fetch('/api/mapping/cancel-overwrite', { method: 'POST' });
                         showMappingMessage('Mapping cancelled. No changes made.', 'warning');
                     }
-                    
-                    // Reset UI
-                    document.getElementById('startMappingBtn').style.display = 'inline-block';
+
+                    document.getElementById('startMappingBtn').style.display = 'inline-flex';
                     document.getElementById('cancelMappingBtn').style.display = 'none';
                     document.getElementById('playlistSelect').disabled = false;
                     document.getElementById('mappingAnimationSelect').disabled = false;
-                    
-                    // Stop checking mapping status
+
                     if (mappingStatusCheckInterval) {
                         clearInterval(mappingStatusCheckInterval);
                         mappingStatusCheckInterval = null;
@@ -1228,31 +1678,26 @@
                     return;
                 }
 
-                // Show any messages from MIDI handler
                 if (status.last_message) {
                     showMappingMessage(status.last_message.message, status.last_message.type);
                 }
 
                 if (!status.active) {
-                    // Mapping completed or cancelled
                     if (mappingStatusCheckInterval) {
                         clearInterval(mappingStatusCheckInterval);
                         mappingStatusCheckInterval = null;
                     }
-                    
-                    // Reset UI if mapping was active
+
                     if (document.getElementById('cancelMappingBtn').style.display !== 'none') {
-                        document.getElementById('startMappingBtn').style.display = 'inline-block';
+                        document.getElementById('startMappingBtn').style.display = 'inline-flex';
                         document.getElementById('cancelMappingBtn').style.display = 'none';
                         document.getElementById('playlistSelect').disabled = false;
                         document.getElementById('mappingAnimationSelect').disabled = false;
-                        
-                        // Refresh mappings to show new mapping
                         refreshMappings();
                     }
                 }
             } catch (error) {
-                // Silently fail - mapping status check is not critical
+                // non-critical
             }
         }
 
@@ -1264,10 +1709,8 @@
             try {
                 const response = await fetch('/api/mapping/delete', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ x: x, y: y })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ x, y })
                 });
 
                 const result = await response.json();
@@ -1283,19 +1726,42 @@
             }
         }
 
+        async function clearAllMappings() {
+            if (!confirm(
+                'Clear ALL playlist mappings?\n\n' +
+                'This removes every pad mapping from config/playlists.json. This cannot be undone.'
+            )) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/mapping/clear-all', { method: 'POST' });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showMappingMessage(result.message || 'All mappings cleared', 'success');
+                    showMessage(result.message || 'All mappings cleared', 'success');
+                    refreshMappings();
+                } else {
+                    showMappingMessage(result.error || 'Failed to clear mappings', 'error');
+                }
+            } catch (error) {
+                showMappingMessage('Network error: ' + error.message, 'error');
+            }
+        }
+
         function showMappingMessage(message, type) {
             const statusDiv = document.getElementById('mappingStatus');
             statusDiv.className = type + '-message';
             statusDiv.textContent = message;
-            
-            // Scroll to message if it's not visible
             statusDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-            // Clear message after timeout (longer for errors/warnings)
             const timeout = (type === 'error' || type === 'warning') ? 8000 : 5000;
             setTimeout(() => {
-                statusDiv.textContent = '';
-                statusDiv.className = '';
+                if (statusDiv.textContent === message) {
+                    statusDiv.textContent = '';
+                    statusDiv.className = '';
+                }
             }, timeout);
         }
 
@@ -1303,12 +1769,10 @@
             try {
                 const response = await fetch('/api/mapping/update-animation', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        x: x,
-                        y: y,
+                        x,
+                        y,
                         animation: animation || null
                     })
                 });
@@ -1316,27 +1780,476 @@
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    // Show brief success feedback
                     const selectElement = document.getElementById(`anim-select-${x}-${y}`);
                     if (selectElement) {
                         const originalBg = selectElement.style.background;
-                        selectElement.style.background = 'rgba(46, 204, 113, 0.3)';
+                        selectElement.style.background = 'rgba(51, 209, 122, 0.25)';
                         setTimeout(() => {
                             selectElement.style.background = originalBg;
                         }, 500);
                     }
+                    refreshMappings();
                 } else {
                     showMappingMessage(result.error || 'Failed to update animation', 'error');
-                    // Refresh mappings to restore original value
                     refreshMappings();
                 }
             } catch (error) {
                 showMappingMessage('Network error: ' + error.message, 'error');
-                // Refresh mappings to restore original value
                 refreshMappings();
             }
         }
 
+        let userActionStatusInterval = null;
+        let editingUserActionCoord = null;
+        let currentUserActionsCache = {};
+
+        function updateUserActionFormFields(preferredAppName) {
+            const type = document.getElementById('userActionType').value;
+            const container = document.getElementById('userActionFields');
+            let html = '';
+
+            if (type === 'shell') {
+                html = `
+                    <div class="form-group">
+                        <label for="userActionCommand">Command</label>
+                        <textarea id="userActionCommand" placeholder="cd ~/Sites && git status"></textarea>
+                    </div>`;
+            } else if (type === 'open_url') {
+                html = `
+                    <div class="form-group">
+                        <label for="userActionUrl">URL</label>
+                        <input type="text" id="userActionUrl" placeholder="https://example.com">
+                    </div>`;
+            } else if (type === 'http_request') {
+                html = `
+                    <div class="form-group">
+                        <label for="userActionMethod">Method</label>
+                        <select id="userActionMethod">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="DELETE">DELETE</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="userActionUrl">URL</label>
+                        <input type="text" id="userActionUrl" placeholder="https://example.com/hook">
+                    </div>
+                    <div class="form-group">
+                        <label for="userActionHeaders">Headers (JSON object)</label>
+                        <textarea id="userActionHeaders" placeholder='{"Content-Type":"application/json"}'></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="userActionBody">Body</label>
+                        <textarea id="userActionBody" placeholder='{"ok":true}'></textarea>
+                    </div>`;
+            } else if (type === 'app_toggle') {
+                html = `
+                    <div class="form-group">
+                        <label for="userActionAppSelect">Running apps</label>
+                        <div class="inline-row">
+                            <select id="userActionAppSelect" onchange="onUserAppSelectChange()">
+                                <option value="">Loading running apps…</option>
+                            </select>
+                            <button type="button" class="btn btn-small" onclick="loadRunningApps()">Refresh</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-row">
+                            <input type="checkbox" id="userActionIncludeBackground" onchange="loadRunningApps()">
+                            <span>Include background processes</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="userActionAppName">App name (select above or type)</label>
+                        <input type="text" id="userActionAppName" placeholder="Safari" list="userActionAppDatalist">
+                        <datalist id="userActionAppDatalist"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-row">
+                            <input type="checkbox" id="userActionForceKill">
+                            <span>Force kill if quit is ignored</span>
+                        </label>
+                    </div>`;
+            } else if (type === 'applescript') {
+                html = `
+                    <div class="form-group">
+                        <label for="userActionScript">AppleScript</label>
+                        <textarea id="userActionScript" placeholder='set volume output muted true'></textarea>
+                    </div>`;
+            }
+
+            container.innerHTML = html;
+            if (type === 'app_toggle') {
+                loadRunningApps(preferredAppName);
+            }
+            refreshIcons();
+        }
+
+        function onUserAppSelectChange() {
+            const select = document.getElementById('userActionAppSelect');
+            const input = document.getElementById('userActionAppName');
+            if (select && input && select.value) {
+                input.value = select.value;
+                const labelInput = document.getElementById('userActionLabel');
+                if (labelInput && !labelInput.value.trim()) {
+                    labelInput.value = select.value + ' toggle';
+                }
+            }
+        }
+
+        async function loadRunningApps(preferredName) {
+            const select = document.getElementById('userActionAppSelect');
+            const datalist = document.getElementById('userActionAppDatalist');
+            const input = document.getElementById('userActionAppName');
+            if (!select) return;
+
+            const current =
+                preferredName ||
+                (input && input.value.trim()) ||
+                select.value ||
+                '';
+            const includeBackground = !!document.getElementById('userActionIncludeBackground')?.checked;
+            const qs = includeBackground ? '?background=1' : '';
+
+            select.innerHTML = '<option value="">Loading…</option>';
+            try {
+                const response = await fetch('/api/user-actions/running-apps' + qs);
+                const data = await response.json();
+                if (!response.ok) {
+                    select.innerHTML = `<option value="">${escapeHtml(data.error || 'Failed to load apps')}</option>`;
+                    return;
+                }
+
+                const apps = data.apps || [];
+                select.innerHTML = '<option value="">Select a running app…</option>' +
+                    apps.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+
+                if (datalist) {
+                    datalist.innerHTML = apps.map(name => `<option value="${escapeHtml(name)}"></option>`).join('');
+                }
+
+                if (current) {
+                    const exists = apps.some(name => name === current);
+                    if (exists) select.value = current;
+                    if (input) input.value = current;
+                }
+            } catch (error) {
+                select.innerHTML = '<option value="">Network error</option>';
+            }
+        }
+
+        function collectUserActionPayload() {
+            const type = document.getElementById('userActionType').value;
+            const label = document.getElementById('userActionLabel').value.trim();
+            const action = { type, label };
+
+            if (type === 'shell') {
+                action.command = (document.getElementById('userActionCommand')?.value || '').trim();
+            } else if (type === 'open_url') {
+                action.url = (document.getElementById('userActionUrl')?.value || '').trim();
+            } else if (type === 'http_request') {
+                action.method = document.getElementById('userActionMethod')?.value || 'GET';
+                action.url = (document.getElementById('userActionUrl')?.value || '').trim();
+                action.headers = (document.getElementById('userActionHeaders')?.value || '').trim();
+                action.body = document.getElementById('userActionBody')?.value || '';
+            } else if (type === 'app_toggle') {
+                const typed = (document.getElementById('userActionAppName')?.value || '').trim();
+                const selected = (document.getElementById('userActionAppSelect')?.value || '').trim();
+                action.app_name = typed || selected;
+                action.force_kill = !!document.getElementById('userActionForceKill')?.checked;
+            } else if (type === 'applescript') {
+                action.script = (document.getElementById('userActionScript')?.value || '').trim();
+            }
+
+            return action;
+        }
+
+        function fillUserActionForm(action) {
+            document.getElementById('userActionLabel').value = action.label || '';
+            document.getElementById('userActionType').value = action.type || 'shell';
+            updateUserActionFormFields(action.type === 'app_toggle' ? (action.app_name || '') : undefined);
+
+            if (action.type === 'shell') {
+                document.getElementById('userActionCommand').value = action.command || '';
+            } else if (action.type === 'open_url') {
+                document.getElementById('userActionUrl').value = action.url || '';
+            } else if (action.type === 'http_request') {
+                document.getElementById('userActionMethod').value = action.method || 'GET';
+                document.getElementById('userActionUrl').value = action.url || '';
+                document.getElementById('userActionHeaders').value =
+                    action.headers ? JSON.stringify(action.headers, null, 2) : '';
+                document.getElementById('userActionBody').value = action.body || '';
+            } else if (action.type === 'app_toggle') {
+                document.getElementById('userActionForceKill').checked = !!action.force_kill;
+            } else if (action.type === 'applescript') {
+                document.getElementById('userActionScript').value = action.script || '';
+            }
+        }
+
+        function setUserActionMappingUi(active) {
+            document.getElementById('startUserActionBtn').style.display = active ? 'none' : 'inline-flex';
+            document.getElementById('cancelUserActionBtn').style.display = active ? 'inline-flex' : 'none';
+            document.getElementById('userProfileSelect').disabled = active;
+            document.getElementById('userActionType').disabled = active;
+        }
+
+        function showUserActionMessage(message, type) {
+            const statusDiv = document.getElementById('userActionStatus');
+            statusDiv.className = type + '-message';
+            statusDiv.textContent = message;
+            statusDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            const timeout = (type === 'error' || type === 'warning') ? 8000 : 5000;
+            setTimeout(() => {
+                if (statusDiv.textContent === message) {
+                    statusDiv.textContent = '';
+                    statusDiv.className = '';
+                }
+            }, timeout);
+        }
+
+        async function startUserActionMapping() {
+            const profile = document.getElementById('userProfileSelect').value;
+            const action = collectUserActionPayload();
+
+            if (editingUserActionCoord) {
+                try {
+                    const response = await fetch('/api/user-actions/update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            profile,
+                            x: editingUserActionCoord.x,
+                            y: editingUserActionCoord.y,
+                            action
+                        })
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.success) {
+                        showUserActionMessage(result.message || 'Action updated', 'success');
+                        editingUserActionCoord = null;
+                        document.getElementById('startUserActionBtn').textContent = 'Map — then press Launchpad';
+                        refreshUserActions();
+                    } else {
+                        showUserActionMessage(result.error || 'Failed to update action', 'error');
+                    }
+                } catch (error) {
+                    showUserActionMessage('Network error: ' + error.message, 'error');
+                }
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/user-actions/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ profile, action })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showUserActionMessage(
+                        'Now press a grid pad on the Launchpad (not the top row or right column). That pad will get this action.',
+                        'success'
+                    );
+                    setUserActionMappingUi(true);
+                    if (!userActionStatusInterval) {
+                        userActionStatusInterval = setInterval(checkUserActionStatus, 500);
+                    }
+                } else {
+                    showUserActionMessage(result.error || 'Failed to start mapping mode', 'error');
+                }
+            } catch (error) {
+                showUserActionMessage('Network error: ' + error.message, 'error');
+            }
+        }
+
+        async function cancelUserActionMapping() {
+            try {
+                await fetch('/api/user-actions/cancel', { method: 'POST' });
+                showUserActionMessage('Mapping cancelled — no longer waiting for Launchpad.', 'warning');
+                setUserActionMappingUi(false);
+                editingUserActionCoord = null;
+                document.getElementById('startUserActionBtn').textContent = 'Map — then press Launchpad';
+                if (userActionStatusInterval) {
+                    clearInterval(userActionStatusInterval);
+                    userActionStatusInterval = null;
+                }
+            } catch (error) {
+                showUserActionMessage('Network error: ' + error.message, 'error');
+            }
+        }
+
+        async function checkUserActionStatus() {
+            try {
+                const response = await fetch('/api/user-actions/status');
+                const status = await response.json();
+
+                if (status.pending_confirmation && status.pending_confirmation.profile) {
+                    const conf = status.pending_confirmation;
+                    const existingLabel = conf.existing.label || conf.existing.type;
+                    const newLabel = (conf.action && (conf.action.label || conf.action.type)) || 'new action';
+                    const confirmed = confirm(
+                        `Button (${conf.x},${conf.y}) already has:\n${existingLabel}\n\n` +
+                        `Overwrite with:\n${newLabel}?`
+                    );
+                    if (confirmed) {
+                        await fetch('/api/user-actions/confirm-overwrite', { method: 'POST' });
+                        showUserActionMessage('Action overwritten successfully', 'success');
+                        refreshUserActions();
+                    } else {
+                        await fetch('/api/user-actions/cancel-overwrite', { method: 'POST' });
+                        showUserActionMessage('Mapping cancelled. No changes made.', 'warning');
+                    }
+                    setUserActionMappingUi(false);
+                    if (userActionStatusInterval) {
+                        clearInterval(userActionStatusInterval);
+                        userActionStatusInterval = null;
+                    }
+                    return;
+                }
+
+                if (status.last_message && status.kind && status.kind.startsWith('user')) {
+                    showUserActionMessage(status.last_message.message, status.last_message.type);
+                }
+                if (status.last_action_message) {
+                    showUserActionMessage(status.last_action_message.message, status.last_action_message.type);
+                }
+
+                if (!status.active && document.getElementById('cancelUserActionBtn').style.display !== 'none') {
+                    setUserActionMappingUi(false);
+                    refreshUserActions();
+                    if (userActionStatusInterval) {
+                        clearInterval(userActionStatusInterval);
+                        userActionStatusInterval = null;
+                    }
+                }
+            } catch (error) {
+                // non-critical
+            }
+        }
+
+        function renderUserActionList(actions, options) {
+            const keys = Object.keys(actions || {});
+            const { interactive, limit, profile } = options || {};
+            const slice = typeof limit === 'number' ? keys.slice(0, limit) : keys;
+
+            if (!keys.length) {
+                return `<div class="list-empty">No actions mapped${profile ? ' for ' + escapeHtml(profile) : ''}.</div>`;
+            }
+
+            return slice.map(key => {
+                const item = actions[key];
+                const [x, y] = item.coordinates;
+                const detail = summarizeUserAction(item);
+                const title = escapeHtml(item.label || item.type);
+                const sub = escapeHtml(detail);
+
+                if (!interactive) {
+                    return `
+                        <div class="list-item">
+                            <div class="list-item-icon green"><i data-lucide="zap"></i></div>
+                            <div class="list-item-body">
+                                <div class="list-item-title">${title}</div>
+                                <div class="list-item-sub">${escapeHtml(item.type)} · (${x},${y})</div>
+                            </div>
+                        </div>`;
+                }
+
+                return `
+                    <div class="mapping-item">
+                        <span class="mapping-position">(${x},${y})</span>
+                        <span class="mapping-playlist">${title} — ${sub}</span>
+                        <button class="btn btn-small" type="button" onclick="editUserAction(${x}, ${y})">Edit</button>
+                        <button class="btn btn-small btn-danger" type="button" onclick="deleteUserAction(${x}, ${y})">Delete</button>
+                    </div>`;
+            }).join('');
+        }
+
+        async function refreshUserActions() {
+            const profile = document.getElementById('userProfileSelect').value;
+            const preview = document.getElementById('userActionPreview');
+            const dashPreview = document.getElementById('userActionDashPreview');
+            try {
+                const response = await fetch(`/api/user-actions?profile=${encodeURIComponent(profile)}`);
+                const data = await response.json();
+                const actions = data.actions || {};
+                currentUserActionsCache = actions;
+                const keys = Object.keys(actions);
+
+                const countEl = document.getElementById('userActionCount');
+                if (countEl) countEl.textContent = keys.length;
+
+                if (preview) {
+                    preview.innerHTML = renderUserActionList(actions, { interactive: true, profile });
+                }
+                if (dashPreview) {
+                    dashPreview.innerHTML = renderUserActionList(actions, { interactive: false, limit: 5, profile });
+                }
+                refreshIcons();
+            } catch (error) {
+                const err = '<div class="list-empty" style="color:var(--danger);">Failed to load user actions</div>';
+                if (preview) preview.innerHTML = err;
+                if (dashPreview) dashPreview.innerHTML = err;
+            }
+        }
+
+        function summarizeUserAction(item) {
+            switch (item.type) {
+                case 'shell': return item.command || 'shell';
+                case 'open_url': return item.url || 'url';
+                case 'http_request': return `${item.method || 'GET'} ${item.url || ''}`.trim();
+                case 'app_toggle': return `${item.app_name || 'app'}${item.force_kill ? ' (force)' : ''}`;
+                case 'applescript': return (item.script || '').split('\n')[0];
+                default: return item.type || '';
+            }
+        }
+
+        function escapeHtml(text) {
+            return String(text || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function editUserAction(x, y) {
+            const action = currentUserActionsCache[`${x},${y}`];
+            if (!action) {
+                showUserActionMessage('Action not found in list — refresh and try again', 'error');
+                return;
+            }
+            showSection('user-actions');
+            editingUserActionCoord = { x, y };
+            fillUserActionForm(action);
+            document.getElementById('startUserActionBtn').textContent = `Update (${x},${y})`;
+            showUserActionMessage(`Editing (${x},${y}). Change the fields and press Update (no Launchpad press needed).`, 'success');
+        }
+
+        async function deleteUserAction(x, y) {
+            const profile = document.getElementById('userProfileSelect').value;
+            if (!confirm(`Delete action at (${x},${y}) for ${profile}?`)) return;
+            try {
+                const response = await fetch('/api/user-actions/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ profile, x, y })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    showUserActionMessage(result.message || 'Deleted', 'success');
+                    if (editingUserActionCoord && editingUserActionCoord.x === x && editingUserActionCoord.y === y) {
+                        editingUserActionCoord = null;
+                        document.getElementById('startUserActionBtn').textContent = 'Map — then press Launchpad';
+                    }
+                    refreshUserActions();
+                } else {
+                    showUserActionMessage(result.error || 'Failed to delete', 'error');
+                }
+            } catch (error) {
+                showUserActionMessage('Network error: ' + error.message, 'error');
+            }
+        }
     </script>
 </body>
 </html>

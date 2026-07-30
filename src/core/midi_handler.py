@@ -10,18 +10,26 @@ from ..services.playlist_manager import get_playlist_id_by_name
 class MidiHandler:
     """Handles MIDI input messages from Launchpad."""
 
-    def __init__(self, animation_controller, spotify_manager, playlist_manager):
+    def __init__(
+        self,
+        animation_controller,
+        spotify_manager,
+        playlist_manager,
+        user_action_manager=None,
+        action_executor=None,
+    ):
         self.animation_controller = animation_controller
         self.spotify_manager = spotify_manager
         self.playlist_manager = playlist_manager
+        self.user_action_manager = user_action_manager
+        self.action_executor = action_executor
         self.button_states = {}
-        # Mapping mode state
+        # Mapping capture: kind is 'playlist' | 'user1' | 'user2'
         self.mapping_mode = False
-        self.pending_mapping = None  # {'playlist': name, 'animation': name}
-        # Web notification messages
-        self.last_mapping_message = None  # {'type': 'success'|'error'|'warning', 'message': str}
-        # Pending confirmation for overwrite
-        self.pending_confirmation = None  # {'x': int, 'y': int, 'playlist': name, 'animation': name}
+        self.mapping_kind = None
+        self.pending_mapping = None
+        self.last_mapping_message = None
+        self.pending_confirmation = None
 
     def on_midi_message(self, message, time_stamp):
         """Handle incoming MIDI messages.
@@ -87,11 +95,34 @@ class MidiHandler:
                 print("Exited animation selection mode")
             return
 
+        # User 1 (5,8) / User 2 (6,8) - custom action modes
+        if x == 5 and y == 8:
+            active = self.animation_controller.toggle_user_mode('user1')
+            print("Entered User 1 mode" if active else "Exited User 1 mode")
+            return
+
+        if x == 6 and y == 8:
+            active = self.animation_controller.toggle_user_mode('user2')
+            print("Entered User 2 mode" if active else "Exited User 2 mode")
+            return
+
+        # Play/Pause moved to right column (8,0)
+        if x == 8 and y == 0:
+            self._toggle_play_pause()
+            return
+
+        active_mode = self.animation_controller.active_mode
+
         # Handle animation selection mode
-        if self.animation_controller.animation_select_mode:
+        if active_mode == 'session':
             selected = self.animation_controller.select_animation_by_position(x, y)
             if selected:
                 print(f"Selected animation: {selected}")
+            return
+
+        # User action modes
+        if active_mode in ('user1', 'user2'):
+            self._run_user_action(active_mode, x, y)
             return
 
         # Mixer button (7,8) for random playlist
@@ -104,6 +135,22 @@ class MidiHandler:
             self._handle_control_button(x)
         else:  # Regular playlist buttons
             self._play_playlist_for_button(x, y)
+
+    def _run_user_action(self, profile, x, y):
+        """Run the mapped user action for a pad (grid only)."""
+        if not (0 <= x < 8 and 0 <= y <= 7):
+            return
+        if not self.user_action_manager or not self.action_executor:
+            print("User actions not configured")
+            return
+
+        action = self.user_action_manager.get(profile, x, y)
+        if not action:
+            return
+
+        label = action.get('label') or action.get('type')
+        print(f"User action [{profile}] ({x},{y}): {label}")
+        self.action_executor.run(action)
 
     def _show_animation_selection_guide(self):
         """Display animation selection guide in terminal."""
@@ -123,6 +170,32 @@ class MidiHandler:
 
         print("\nTap session button (4,8) again to exit animation selection mode")
         print("================================")
+
+    def _toggle_play_pause(self):
+        """Toggle Spotify play/pause and related animation state."""
+        if not self.spotify_manager or not self.spotify_manager.ensure_ready():
+            return
+
+        sm = self.spotify_manager
+        try:
+            device_id = get_active_or_default_device(sm.spotify, sm)
+            if not device_id:
+                print("No active device found")
+                return
+
+            current = sm.get_current_playback()
+            if current and current['is_playing']:
+                sm.api_call('pause_playback', device_id=device_id)
+                print("Playback paused")
+                self.animation_controller.stop_animation()
+            else:
+                sm.api_call('start_playback', device_id=device_id)
+                print("Playback started")
+                if self.animation_controller.last_animation:
+                    self.animation_controller.set_animation(self.animation_controller.last_animation)
+        except Exception as e:
+            if not sm.handle_api_error(e):
+                print(f"Error toggling playback: {e}")
 
     def _handle_control_button(self, x):
         """Handle control button presses in top row.
@@ -187,26 +260,6 @@ class MidiHandler:
                 if not sm.handle_api_error(e):
                     print(f"Error: {e}")
 
-        elif x == 5:  # Play/Pause
-            try:
-                device_id = get_active_or_default_device(sm.spotify, sm)
-                if not device_id:
-                    print("No active device found")
-                    return
-
-                current = sm.get_current_playback()
-                if current and current['is_playing']:
-                    sm.api_call('pause_playback', device_id=device_id)
-                    print("Playback paused")
-                    self.animation_controller.stop_animation()
-                else:
-                    sm.api_call('start_playback', device_id=device_id)
-                    print("Playback started")
-                    if self.animation_controller.last_animation:
-                        self.animation_controller.set_animation(self.animation_controller.last_animation)
-            except Exception as e:
-                if not sm.handle_api_error(e):
-                    print(f"Error toggling playback: {e}")
     def _play_playlist_for_button(self, x, y):
         """Handle playlist button press.
 
@@ -322,7 +375,7 @@ class MidiHandler:
         return False
 
     def start_mapping_mode(self, playlist_name, animation_name=None):
-        """Start mapping mode to capture button press.
+        """Start mapping mode to capture button press for a playlist.
 
         Args:
             playlist_name: Name of playlist to map
@@ -335,13 +388,14 @@ class MidiHandler:
             return False  # Already in mapping mode
 
         self.mapping_mode = True
+        self.mapping_kind = 'playlist'
         self.pending_mapping = {
             'playlist': playlist_name,
             'animation': animation_name
         }
-        self.last_mapping_message = None  # Clear previous messages
-        self.pending_confirmation = None  # Clear any pending confirmations
-        
+        self.last_mapping_message = None
+        self.pending_confirmation = None
+
         print(f"\n=== MAPPING MODE ===")
         print(f"Playlist: {playlist_name}")
         if animation_name:
@@ -351,10 +405,43 @@ class MidiHandler:
         print("================================")
         return True
 
+    def start_user_action_mapping(self, profile, action):
+        """Start mapping mode to assign a user action to a pad.
+
+        Args:
+            profile: 'user1' or 'user2'
+            action: Action dict (type, label, and type-specific fields)
+
+        Returns:
+            bool: True if mapping mode started successfully
+        """
+        if self.mapping_mode:
+            return False
+        if profile not in ('user1', 'user2'):
+            return False
+        if not isinstance(action, dict) or not action.get('type'):
+            return False
+        if not self.user_action_manager:
+            return False
+
+        self.mapping_mode = True
+        self.mapping_kind = profile
+        self.pending_mapping = {'profile': profile, 'action': action}
+        self.last_mapping_message = None
+        self.pending_confirmation = None
+
+        label = action.get('label') or action.get('type')
+        print(f"\n=== USER ACTION MAPPING ({profile}) ===")
+        print(f"Action: {label} [{action.get('type')}]")
+        print("Press a grid button on your Launchpad to map this action.")
+        print("================================")
+        return True
+
     def cancel_mapping_mode(self):
         """Cancel mapping mode."""
         if self.mapping_mode:
             self.mapping_mode = False
+            self.mapping_kind = None
             self.pending_mapping = None
             self.pending_confirmation = None
             self.last_mapping_message = {'type': 'warning', 'message': 'Mapping mode cancelled.'}
@@ -370,6 +457,7 @@ class MidiHandler:
         """
         status = {
             'active': self.mapping_mode,
+            'kind': self.mapping_kind,
             'pending': self.pending_mapping,
             'last_message': self.last_mapping_message,
             'pending_confirmation': self.pending_confirmation
@@ -377,6 +465,15 @@ class MidiHandler:
         # Clear message after reading (one-time notification)
         if self.last_mapping_message:
             self.last_mapping_message = None
+        return status
+
+    def get_user_action_status(self):
+        """Status for user-action mapping + last executor message."""
+        status = self.get_mapping_status()
+        if self.action_executor:
+            exec_msg = self.action_executor.pop_last_message()
+            if exec_msg:
+                status['last_action_message'] = exec_msg
         return status
 
     def _handle_mapping_mode_button(self, x, y):
@@ -388,6 +485,7 @@ class MidiHandler:
         """
         if not self.pending_mapping:
             self.mapping_mode = False
+            self.mapping_kind = None
             return
 
         # Check if button is system reserved
@@ -398,13 +496,16 @@ class MidiHandler:
             self.last_mapping_message = {'type': 'error', 'message': message}
             return
 
-        # Check if button already has a mapping
+        if self.mapping_kind in ('user1', 'user2'):
+            self._handle_user_action_mapping_button(x, y)
+            return
+
+        # Playlist mapping
         existing_mapping = self.playlist_manager.get_mapping(x, y)
         if existing_mapping:
-            # Store pending confirmation for web interface
             playlist_name = self.pending_mapping['playlist']
             animation_name = self.pending_mapping.get('animation')
-            
+
             self.pending_confirmation = {
                 'x': x,
                 'y': y,
@@ -412,11 +513,11 @@ class MidiHandler:
                 'animation': animation_name,
                 'existing': existing_mapping
             }
-            
+
             existing_info = f"Playlist: {existing_mapping['name']}"
             if existing_mapping.get('animation'):
                 existing_info += f", Animation: {existing_mapping['animation']}"
-            
+
             message = f"⚠️ Button ({x},{y}) is already mapped to {existing_info}. Waiting for confirmation..."
             print(f"⚠️  Button ({x},{y}) is already mapped to:")
             print(f"   Playlist: {existing_mapping['name']}")
@@ -424,27 +525,74 @@ class MidiHandler:
                 print(f"   Animation: {existing_mapping['animation']}")
             print("Waiting for confirmation from web interface...")
             self.last_mapping_message = {'type': 'warning', 'message': message}
-            return  # Wait for web confirmation
+            return
 
-        # No existing mapping, save directly
         self._save_mapping(x, y)
 
+    def _handle_user_action_mapping_button(self, x, y):
+        """Handle pad press while capturing a user action mapping."""
+        profile = self.mapping_kind
+        action = self.pending_mapping.get('action')
+        existing = self.user_action_manager.get(profile, x, y) if self.user_action_manager else None
+
+        if existing:
+            self.pending_confirmation = {
+                'x': x,
+                'y': y,
+                'profile': profile,
+                'action': action,
+                'existing': existing,
+            }
+            label = existing.get('label') or existing.get('type')
+            message = (
+                f"⚠️ Button ({x},{y}) already has action '{label}'. Waiting for confirmation..."
+            )
+            print(message)
+            self.last_mapping_message = {'type': 'warning', 'message': message}
+            return
+
+        self._save_user_action_mapping(x, y)
+
+    def _save_user_action_mapping(self, x, y):
+        """Persist a user action mapping at coordinates."""
+        if self.pending_confirmation and self.pending_confirmation.get('profile'):
+            profile = self.pending_confirmation['profile']
+            action = self.pending_confirmation['action']
+            x = self.pending_confirmation['x']
+            y = self.pending_confirmation['y']
+            self.pending_confirmation = None
+        elif self.pending_mapping and self.mapping_kind in ('user1', 'user2'):
+            profile = self.mapping_kind
+            action = self.pending_mapping['action']
+        else:
+            return
+
+        self.user_action_manager.set(profile, x, y, action)
+        self.user_action_manager.save()
+
+        label = action.get('label') or action.get('type')
+        success_msg = f"✅ User action saved! [{profile}] ({x},{y}) → {label} ({action.get('type')})"
+        print(f"\n{success_msg}")
+        self.last_mapping_message = {'type': 'success', 'message': success_msg}
+
+        self.mapping_mode = False
+        self.mapping_kind = None
+        self.pending_mapping = None
+
     def _save_mapping(self, x, y):
-        """Save mapping for coordinates.
-        
+        """Save playlist mapping for coordinates.
+
         Args:
             x: X coordinate
             y: Y coordinate
         """
-        if self.pending_confirmation:
-            # Use pending confirmation data
+        if self.pending_confirmation and 'playlist' in self.pending_confirmation:
             playlist_name = self.pending_confirmation['playlist']
             animation_name = self.pending_confirmation.get('animation')
             x = self.pending_confirmation['x']
             y = self.pending_confirmation['y']
             self.pending_confirmation = None
-        elif self.pending_mapping:
-            # Use pending mapping data
+        elif self.pending_mapping and self.mapping_kind == 'playlist':
             playlist_name = self.pending_mapping['playlist']
             animation_name = self.pending_mapping.get('animation')
         else:
@@ -456,43 +604,47 @@ class MidiHandler:
         success_msg = f"✅ Mapping saved! Button ({x},{y}) → Playlist: {playlist_name}"
         if animation_name:
             success_msg += f", Animation: {animation_name}"
-        
+
         print(f"\n✅ Mapping saved!")
         print(f"   Button ({x},{y}) → Playlist: {playlist_name}")
         if animation_name:
             print(f"   Animation: {animation_name}")
-        
+
         self.last_mapping_message = {'type': 'success', 'message': success_msg}
 
-        # Exit mapping mode
         self.mapping_mode = False
+        self.mapping_kind = None
         self.pending_mapping = None
 
     def confirm_overwrite(self):
         """Confirm overwrite of existing mapping.
-        
+
         Returns:
             bool: True if confirmation was processed, False if no pending confirmation
         """
         if not self.pending_confirmation:
             return False
-        
+
         x = self.pending_confirmation['x']
         y = self.pending_confirmation['y']
-        self._save_mapping(x, y)
+        if self.pending_confirmation.get('profile'):
+            self._save_user_action_mapping(x, y)
+        else:
+            self._save_mapping(x, y)
         return True
 
     def cancel_overwrite(self):
         """Cancel overwrite of existing mapping.
-        
+
         Returns:
             bool: True if cancellation was processed, False if no pending confirmation
         """
         if not self.pending_confirmation:
             return False
-        
+
         self.pending_confirmation = None
         self.mapping_mode = False
+        self.mapping_kind = None
         self.pending_mapping = None
         self.last_mapping_message = {'type': 'warning', 'message': 'Mapping cancelled. No changes made.'}
         print("Mapping cancelled by user.")

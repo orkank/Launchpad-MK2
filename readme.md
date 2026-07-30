@@ -1,8 +1,12 @@
 # Launchpad MK2 Spotify Controller
 
-**Version:** 2.1.0
+**Version:** 2.3.0
 
 This project was created to repurpose an old Novation Launchpad MK2 as a Spotify controller. The script allows you to control Spotify playback and create LED animations through both direct interaction and HTTP requests, enabling integration with other applications.
+
+![Launchpad MK2 web control panel](webpanel.png)
+
+*The web control panel was redesigned in **2.3.0** — a desktop-style dashboard with sidebar navigation, Now Playing hero, live stats, playlist mappings, user actions, and quick controls. It is also responsive for phones and tablets.*
 
 ![Launchpad MK2 Spotify Controller](giphy.gif)
 
@@ -18,11 +22,57 @@ This project was created to repurpose an old Novation Launchpad MK2 as a Spotify
 - LED animations controllable via HTTP requests
 - Device selection for Spotify playback
 - Customizable playlist mappings with animations
-- **🎉 NEW: Rich colorized terminal interface** with beautiful help and status displays
-- **🎉 NEW: Web control panel** with real-time status and controls
-- **🎉 NEW: Enhanced playlist mapping preview** with visual grid layout
+- **User 1 / User 2 modes** — custom pad actions (shell, URL, HTTP, app toggle, AppleScript) via the web panel
+- Mode indicator LEDs that stay locked while Session / User modes are active
+- Rich colorized terminal interface with help and status displays
+- **Redesigned web control panel** — sidebar navigation, dashboard overview, dark/light theme, mobile-friendly layout
+- Enhanced playlist mapping preview with visual grid layout
 
 ## Updates
+
+### 2.3.0 — Web panel redesign & mobile layout (July 2026)
+
+**Release notes**
+- Full **UI/UX redesign** of the web control panel into a premium desktop-style app shell
+- **Sidebar navigation**: Dashboard, Playlists, Animations, User Actions, Settings
+- **Dashboard overview**: Now Playing hero, current animation, device status, stats, recent mappings, quick actions
+- Modern design language: soft glass cards, Inter typography, Lucide icons, dark/light theme toggle
+- **Responsive layout** for tablets and phones (drawer menu, stacked cards, touch-friendly controls)
+- Existing Spotify, mapping, animation, audio-features, and user-action flows preserved (presentation-only change)
+- **Auto-launch Spotify** (Settings): when enabled and the default device is this Mac, the Spotify desktop app is started automatically if it is closed when a device is needed
+  - Can only be enabled while the saved default device is detected as this computer (`Computer` type matching this Mac’s name)
+  - Changing/clearing the default device to a non-local device turns the option off automatically
+  - Stored in `config/app_settings.json` (`GET/POST /api/app-settings`)
+- **Launchpad MIDI health**: periodic checks detect when the pad is unplugged/unreachable; console warnings repeat until reconnect, dashboard shows disconnect state, and the app tries to reopen the MIDI ports automatically
+- **Start without Launchpad**: the controller boots even if no MIDI device is present; connect the pad later and it will be picked up automatically
+- **10 new animations**: `checker_pulse`, `spiral_trail`, `meteor_shower`, `plasma_field`, `binary_cascade`, `orbital_dots`, `scan_sweep`, `ember_rise`, `ripple_pool`, `vortex_spin`
+- Mode pad LED locks (Session / User 1 / User 2) no longer get wiped by the MIDI health probe (programmer-mode SysEx removed from the connection check)
+
+**How to open**
+1. Start the controller (`python main.py`)
+2. Open `http://127.0.0.1:5125/` in your browser
+
+### 2.2.0 — User modes, mode LED locks & control remapping (July 2026)
+
+**Release notes**
+- **User 1 `(5,8)` / User 2 `(6,8)` action modes** — each profile has its own 8×8 action bank (separate from Spotify playlist mappings)
+- Configure actions in the web panel (**User Mode Actions**): shell, open URL, HTTP request, macOS app toggle, AppleScript
+- Mapping flow: fill the form → click **Map — then press Launchpad** → press a grid pad `(0–7, 0–7)` (top row and right column are reserved)
+- Runtime: press User 1 or User 2 to enter the mode, then press a mapped grid pad to run the action; press the same User button again to exit
+- Session / User 1 / User 2 are **mutually exclusive**; the active mode pad stays lit with a locked color (Session cyan, User 1 green, User 2 magenta) that animations cannot override
+- **Play/Pause moved** from `(5,8)` to **`(8,0)`** (right column) to free User 1
+- App toggle picker lists running macOS apps (optional background processes); you can still type a custom app name
+- Storage: `config/user_actions.json` (see `config/sample.user_actions.json`)
+
+**Breaking / muscle-memory change**
+- Play/Pause is no longer on `(5,8)`. Use `(8,0)` instead.
+- `(5,8)` and `(6,8)` are now User 1 / User 2 mode toggles.
+
+**Web / API**
+- UI section: **User Mode Actions** + **User Mode Mappings** list
+- `GET /api/user-actions`, `POST /api/user-actions/start|cancel|delete|update`
+- `GET /api/user-actions/status`, overwrite confirm/cancel endpoints
+- `GET /api/user-actions/running-apps` — running app list for app toggle
 
 ### 2.1.0 — Spotify auth recovery & dashboard URI migration (July 2026)
 
@@ -91,8 +141,8 @@ Create and manage playlist mappings directly from the web interface without edit
   - `prism` - Prism effect with rainbow light refraction
 
 **Usage:**
-1. Open web interface at `http://localhost:5125/`
-2. Scroll to "Playlist Mapping Editor" section
+1. Open web interface at `http://127.0.0.1:5125/`
+2. Open **Playlists** in the sidebar
 3. Select a playlist and optional animation
 4. Click "Map Button" and press a button on your Launchpad
 5. Mapping is saved automatically!
@@ -169,8 +219,7 @@ Access via `http://localhost:5125/` for:
   - Press any grid button to instantly switch animations
   - Press session button again to exit selection mode
   - Visual guide in terminal shows which button activates each animation
-- Added play/pause and stop buttons:
-  - Play/Pause button (5,8) - Toggle playback.
+- Added play/pause control (see **2.2.0**: now on `(8,0)`, not `(5,8)`)
 - 5 More animations added
 
 ### New Features - 03/03/2025
@@ -630,29 +679,39 @@ You can start animations either through:
 
 ## 🌐 Web Interface
 
-### 🎮 **Modern Control Panel**
-Visit **`http://localhost:5125`** for a beautiful, modern web control panel featuring:
+### 🎮 **Redesigned Control Panel (2.3.0)**
+Visit **`http://127.0.0.1:5125`** for the updated desktop-style web panel:
 
-- **🎵 Now Playing Section**
-  - Current track display with artist and title
-  - Play/pause/next/previous controls
-  - Real-time playback status
+![Web panel dashboard](webpanel.png)
 
-- **✨ Animation Control**
-  - Dropdown selection of all available animations
-  - One-click start/stop buttons
-  - Current animation status display
+- **Sidebar app shell**
+  - Dashboard, Playlists, Animations, User Actions, Settings
+  - Spotify connection status + dark/light theme toggle
+  - Drawer navigation on mobile
 
-- **📊 Live Status Dashboard**
-  - Mapped playlists count
-  - Current animation name
-  - Spotify connection status
-  - Auto-refreshing every 5 seconds
+- **Dashboard**
+  - Now Playing hero with playback + Re-auth
+  - Current animation / device status cards
+  - Live stats (mapped playlists, animations, user actions, Spotify)
+  - Recent mappings, user actions preview, and quick actions
 
-- **📋 Playlist Mappings Browser**
-  - Visual grid showing all button assignments
-  - Playlist names, coordinates, and animations
-  - Refresh button for latest mappings
+- **Playlists**
+  - Mapping editor + full mappings list with animation dropdowns and delete
+
+- **Animations**
+  - Start/stop animations
+  - Audio features controls and live feature readout
+
+- **User Mode Actions** (since 2.2.0)
+  - Configure shell / URL / HTTP / app toggle / AppleScript actions per User 1 or User 2 bank
+  - Click **Map — then press Launchpad**, then press a grid pad to assign
+  - Pick running macOS apps for app toggle (or type a name)
+  - List, edit, and delete mapped actions
+
+- **Settings**
+  - Default Spotify device
+  - Auto-launch Spotify when closed (only if default device is this Mac)
+  - Re-auth + appearance controls
 
 ### 📋 **API Endpoints**
 
@@ -669,6 +728,19 @@ Visit **`http://localhost:5125`** for a beautiful, modern web control panel feat
 - `POST /pause` - Pause playback
 - `POST /next` - Next track
 - `POST /previous` - Previous track
+
+#### 👤 User Mode Actions
+- `GET /api/user-actions` - List User 1 / User 2 action banks (`?profile=user1|user2`)
+- `POST /api/user-actions/start` - Start pad capture for an action
+- `POST /api/user-actions/cancel` - Cancel pad capture
+- `GET /api/user-actions/status` - Mapping status + last action message
+- `POST /api/user-actions/delete` - Delete an action `{profile,x,y}`
+- `POST /api/user-actions/update` - Update an action without remapping
+- `GET /api/user-actions/running-apps` - Running macOS apps (`?background=1` optional)
+
+#### ⚙️ App Settings
+- `GET /api/app-settings` - Auto-launch Spotify flag + whether it can be enabled
+- `POST /api/app-settings` - Body `{ "auto_launch_spotify": true|false }`
 
 #### 📊 Status & Data
 - `GET /status` - Real-time system status (JSON)
@@ -693,11 +765,11 @@ curl -X POST http://localhost:5125/pause
 curl http://localhost:5125/devices
 ```
 
-### 📱 **Mobile Friendly**
-The web interface is fully responsive and works great on:
-- 📱 **Mobile phones** - Touch-friendly controls
-- 💻 **Desktop browsers** - Full feature access
-- 📟 **Tablets** - Optimized layout
+### 📱 **Responsive (2.3.0)**
+The redesigned panel adapts to:
+- **Phones** — hamburger drawer menu, stacked cards, touch-friendly controls
+- **Tablets** — two-column layouts where space allows
+- **Desktops** — full sidebar + dashboard composition
 
 ## Launchpad Layout
 
@@ -748,13 +820,20 @@ When configuring your playlists.json, use these coordinates:
 ```
 
 ### Control Buttons
-- Volume Up (0,8)
-- Volume Down (1,8)
-- Previous Track (2,8)
-- Next Track (3,8)
-- Animation Selection Mode (4,8)
-- Play/Pause (5,8)
-- Random Playlist (7,8)
+- Volume Up `(0,8)`
+- Volume Down `(1,8)`
+- Previous Track `(2,8)`
+- Next Track `(3,8)`
+- Animation Selection Mode / Session `(4,8)` — locked cyan LED while active
+- User 1 Mode `(5,8)` — locked green LED while active
+- User 2 Mode `(6,8)` — locked magenta LED while active
+- Random Playlist `(7,8)`
+- Play/Pause `(8,0)` — right column
+
+**Mode notes**
+- Session, User 1, and User 2 are mutually exclusive (entering one exits the others)
+- In User modes, grid pads `(0–7, 0–7)` run custom actions from `config/user_actions.json`
+- Configure / map actions from the web panel at `http://127.0.0.1:5125/` → **User Actions**
 
 ## System Requirements & Compatibility
 

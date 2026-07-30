@@ -55,13 +55,21 @@ from .spectrum import (
     tempo_pulse
 )
 
-from .adaptive import (
-    adaptive_rainbow,
-    adaptive_pulse,
-    adaptive_sparkle,
-    adaptive_matrix,
-    auto_select_animation
+from .extra import (
+    checker_pulse,
+    spiral_trail,
+    meteor_shower,
+    plasma_field,
+    binary_cascade,
+    orbital_dots,
+    scan_sweep,
+    ember_rise,
+    ripple_pool,
+    vortex_spin,
 )
+
+# Adaptive animations are disabled — Spotify audio-features often 403;
+# kept in adaptive.py but not registered for selection.
 
 # Animation registry - all available animations
 ANIMATIONS = {
@@ -103,17 +111,22 @@ ANIMATIONS = {
     'lava_lamp': lava_lamp_animation,
     'prism': prism_animation,
 
+    # Extra pack
+    'checker_pulse': checker_pulse,
+    'spiral_trail': spiral_trail,
+    'meteor_shower': meteor_shower,
+    'plasma_field': plasma_field,
+    'binary_cascade': binary_cascade,
+    'orbital_dots': orbital_dots,
+    'scan_sweep': scan_sweep,
+    'ember_rise': ember_rise,
+    'ripple_pool': ripple_pool,
+    'vortex_spin': vortex_spin,
+
     # Spotify-powered spectrum animations
     'spotify_spectrum': spotify_spectrum_analyzer,
     'energy_bars': energy_bars,
     'tempo_pulse': tempo_pulse,
-
-    # Adaptive animations (respond to audio features)
-    'adaptive_rainbow': adaptive_rainbow,
-    'adaptive_pulse': adaptive_pulse,
-    'adaptive_sparkle': adaptive_sparkle,
-    'adaptive_matrix': adaptive_matrix,
-    'auto_select': auto_select_animation
 }
 
 __all__ = [
@@ -149,12 +162,17 @@ __all__ = [
     'neon_grid_animation',
     'lava_lamp_animation',
     'prism_animation',
+    'checker_pulse',
+    'spiral_trail',
+    'meteor_shower',
+    'plasma_field',
+    'binary_cascade',
+    'orbital_dots',
+    'scan_sweep',
+    'ember_rise',
+    'ripple_pool',
+    'vortex_spin',
     'spotify_spectrum_analyzer',
     'energy_bars',
     'tempo_pulse',
-    'adaptive_rainbow',
-    'adaptive_pulse',
-    'adaptive_sparkle',
-    'adaptive_matrix',
-    'auto_select_animation'
 ]

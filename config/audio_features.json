@@ -5,7 +5,7 @@
   "features": {
     "real_time_analysis": true,
     "auto_animation_selection": true,
-    "adaptive_animations": true,
+    "adaptive_animations": false,
     "spectrum_visualization": true
   },
   "performance": {
@@ -19,6 +19,3 @@
     "show_feature_changes": true
   }
 }
-
-
-

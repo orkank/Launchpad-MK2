@@ -2,6 +2,8 @@
 
 import logging
 import os
+import platform
+import subprocess
 import threading
 import time
 import webbrowser
@@ -560,6 +562,173 @@ def format_track_info(track, progress_ms=None):
     return f"{artists} - {name} {time_info}"
 
 
+def get_local_machine_names():
+    """Return lowercase names that may identify this Mac in Spotify Connect."""
+    names = set()
+    host = platform.node() or ''
+    if host:
+        names.add(host)
+        names.add(host.split('.')[0])
+    for key in ('ComputerName', 'LocalHostName'):
+        try:
+            completed = subprocess.run(
+                ['scutil', '--get', key],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            value = (completed.stdout or '').strip()
+            if completed.returncode == 0 and value:
+                names.add(value)
+        except Exception:
+            pass
+    return {n.lower() for n in names if n}
+
+
+def is_local_spotify_device(device):
+    """True if this Spotify Connect device looks like the machine running the controller.
+
+    Requires type Computer and a name that matches this Mac's hostname / ComputerName.
+    """
+    if not device or not isinstance(device, dict):
+        return False
+    if (device.get('type') or '').lower() != 'computer':
+        return False
+    name = (device.get('name') or '').strip().lower()
+    if not name:
+        return False
+    for local in get_local_machine_names():
+        if local and (local in name or name in local):
+            return True
+    return False
+
+
+def read_default_device_id():
+    """Read default_device_id from config/.secret."""
+    try:
+        with open('config/.secret', 'r') as f:
+            secrets = dict(line.strip().split('=', 1) for line in f if '=' in line)
+        return (secrets.get('default_device_id') or '').strip()
+    except Exception:
+        return ''
+
+
+def annotate_devices_with_local(devices_payload):
+    """Add is_local flags to a Spotify devices() response (mutates in place)."""
+    if not devices_payload or 'devices' not in devices_payload:
+        return devices_payload
+    for device in devices_payload.get('devices') or []:
+        device['is_local'] = is_local_spotify_device(device)
+    return devices_payload
+
+
+def is_default_device_local(devices_list=None):
+    """Whether the configured default device is this machine.
+
+    Args:
+        devices_list: Optional list of device dicts; if omitted, locality is
+            unknown when the device is offline (returns False).
+    """
+    default_id = read_default_device_id()
+    if not default_id:
+        return False
+    if not devices_list:
+        return False
+    for device in devices_list:
+        if device.get('id') == default_id:
+            return is_local_spotify_device(device)
+    return False
+
+
+def _spotify_desktop_running():
+    """Check if the Spotify macOS app process is running."""
+    try:
+        from .action_executor import ActionExecutor
+        return ActionExecutor()._app_is_running('Spotify')
+    except Exception:
+        return False
+
+
+def _launch_spotify_desktop():
+    """Open the Spotify macOS app."""
+    completed = subprocess.run(
+        ['open', '-a', 'Spotify'],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    return completed.returncode == 0
+
+
+def _sync_auto_launch_with_devices(device_list):
+    """Turn off auto-launch if the saved default device is visible and not local."""
+    from ..utils.config_manager import config_manager
+
+    if not config_manager.is_auto_launch_spotify_enabled():
+        return
+    default_id = read_default_device_id()
+    if not default_id or not device_list:
+        return
+    for device in device_list:
+        if device.get('id') == default_id:
+            if not is_local_spotify_device(device):
+                print("Default device is not this Mac — disabling Auto-launch Spotify")
+                config_manager.set_auto_launch_spotify(False)
+            return
+
+
+def _maybe_auto_launch_spotify(_call, devices_payload):
+    """If enabled and default device is this Mac, launch Spotify when closed.
+
+    Args:
+        _call: Spotify API caller
+        devices_payload: Current devices() response (may be empty)
+
+    Returns:
+        dict: devices payload (possibly refreshed after launch)
+    """
+    from ..utils.config_manager import config_manager
+
+    if not devices_payload:
+        devices_payload = {'devices': []}
+
+    device_list = devices_payload.get('devices') or []
+    _sync_auto_launch_with_devices(device_list)
+
+    if not config_manager.is_auto_launch_spotify_enabled():
+        return devices_payload
+
+    default_id = read_default_device_id()
+    if not default_id:
+        return devices_payload
+
+    # If default is online and not local, already disabled above
+    for device in device_list:
+        if device.get('id') == default_id and not is_local_spotify_device(device):
+            return devices_payload
+
+    if _spotify_desktop_running():
+        return devices_payload
+
+    print("Spotify app is not running — auto-launching (default device is this Mac)...")
+    if not _launch_spotify_desktop():
+        print("Failed to launch Spotify app")
+        return devices_payload
+
+    for _ in range(12):
+        time.sleep(1)
+        try:
+            devices = _call('devices')
+        except Exception:
+            continue
+        if devices and devices.get('devices'):
+            print("Spotify Connect devices available after auto-launch")
+            return devices
+
+    print("Spotify launched but no Connect devices appeared yet")
+    return devices_payload
+
+
 def get_active_or_default_device(spotify, manager=None):
     """Get active device, default device, or first available device.
 
@@ -586,8 +755,9 @@ def get_active_or_default_device(spotify, manager=None):
         return getattr(spotify, name)(*args, **kwargs)
 
     try:
-        # Get available devices
+        # Get available devices (may auto-launch Spotify on this Mac)
         devices = _call('devices')
+        devices = _maybe_auto_launch_spotify(_call, devices)
 
         if not devices or 'devices' not in devices or not devices['devices']:
             print("No Spotify devices found")
@@ -604,14 +774,12 @@ def get_active_or_default_device(spotify, manager=None):
         # If no active device, try to use default from .secret
         if not device_id:
             try:
-                with open('config/.secret', 'r') as f:
-                    secrets = dict(line.strip().split('=') for line in f if '=' in line)
-                    default_device_id = secrets.get('default_device_id')
-                    if default_device_id:
-                        print(f"Using default device from .secret")
-                        _call('start_playback', device_id=default_device_id)
-                        time.sleep(1)  # Wait for device activation
-                        device_id = default_device_id
+                default_device_id = read_default_device_id()
+                if default_device_id:
+                    print(f"Using default device from .secret")
+                    _call('start_playback', device_id=default_device_id)
+                    time.sleep(1)  # Wait for device activation
+                    device_id = default_device_id
             except Exception as e:
                 if manager and manager.handle_api_error(e):
                     return None

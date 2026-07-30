@@ -20,5 +20,9 @@ share/*
 .secret
 playlist.json
 __pycache__
+# Personal / machine-local config (keep sample.* in git)
 config/playlists.json
 config/.secret
+config/user_actions.json
+config/app_settings.json
+config/audio_features.json
